@@ -86,3 +86,13 @@ def test_packaged_v3_static_ui_privacy_contract() -> None:
     assert "Mobile Documents" not in text
     assert ".pdf" not in text.lower()
     assert "source_file_alias" not in text
+
+
+def test_packaged_v3_static_ui_opens_from_file_url() -> None:
+    index = (STATIC_V3 / "index.html").read_text()
+
+    assert 'data-v3-ui' in _v3_asset_text()
+    assert 'type="module"' not in index
+    assert 'crossorigin' not in index
+    assert '<script defer src="./assets/' in index
+    assert '<link rel="stylesheet" href="./assets/' in index

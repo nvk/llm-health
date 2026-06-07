@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.7 - 2026-06-07
+
+- Fixed the packaged Assessment cockpit opening blank from `file://` in Chrome/Safari by using a deferred classic bundle script and removing CORS-only asset attributes.
+- Added a static contract test so future frontend builds remain direct-file-open compatible.
+
 ## 0.0.6 - 2026-06-07
 
 - Replaced the exported Assessment static dashboard with a prebuilt React + Mantine + Recharts cockpit.
