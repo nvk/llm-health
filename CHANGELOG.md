@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.2 - 2026-06-07
+
+- Added review-board UX pass for the packaged v2 static dashboard: own-risk shell, review cards, domain map, view brief, clearer flag/pending semantics, and dark amber theme fixes.
+- Added dynamic profile selectors in the v2 static dashboard, including alias-only zero-data enrolled profiles from the llm-health HUB.
+- Added release tests for v2 static UI contracts and enrolled-profile export behavior.
+- Tightened v2 upstream compatibility and release packaging so plugin template cache files are not shipped.
+
 ## 0.0.1 - 2026-06-06
 
 - Initial `llm-health` package scaffold.

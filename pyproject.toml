@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "llm-health"
-version = "0.0.1"
+version = "0.0.2"
 description = "Local-first health intelligence for coding agents with event-driven reviews, diagnostic gaps, and research queues"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -95,7 +95,17 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "llm_health.assessment_v2" = ["web_static/*", "README.md"]
-"llm_health.plugin_templates" = ["**/*", "codex/llm-health/.codex-plugin/*", "claude/health/.claude-plugin/*"]
+"llm_health.plugin_templates" = [
+  "agents/*",
+  "codex/llm-health/.codex-plugin/*",
+  "codex/llm-health/skills/health/*",
+  "codex/llm-health/skills/health/agents/*",
+  "claude/health/.claude-plugin/*",
+  "claude/health/commands/*",
+  "claude/health/skills/health-concierge/*",
+  "opencode/llm-health/README.md",
+  "opencode/llm-health/skills/health/*",
+]
 
 [tool.ruff]
 line-length = 100

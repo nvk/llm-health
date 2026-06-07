@@ -225,7 +225,15 @@ def build_app(theme: str | ThemeMode = ThemeMode.LIGHT, duckdb_path: Path | None
 
     template.sidebar.append(
         pn.Column(
-            "## Controls",
+            "## Review controls",
+            pn.pane.Markdown(
+                "`OWN-RISK` Private local briefing; not diagnosis, medical advice, "
+                "orders, prescriptions, or a clinician relationship."
+            ),
+            pn.pane.Markdown(
+                "**Workflow:** Review queue → domain map → timeline evidence → "
+                "source rows/export."
+            ),
             profile,
             date_range,
             "### Timelines",
@@ -344,15 +352,16 @@ def _hero_panel(repo: HealthRepository, profile: str):
             f"Apple Health context: {summary['wearable_rows']:,} optimized daily rows "
             f"from {summary['wearable_start']} to {summary['wearable_end']}."
         )
-        tags = ["LABS", "WEARABLE_CONTEXT", "QA REVIEW"]
+        tags = ["OWN-RISK", "LABS", "WEARABLE_CONTEXT", "QA REVIEW"]
     else:
         wearable_line = "No Apple Health wearable dataset is assigned to this profile yet."
-        tags = ["LABS", "DATA_GAP", "PROFILE EXCLUSIVE"]
+        tags = ["OWN-RISK", "LABS", "DATA_GAP", "PROFILE EXCLUSIVE"]
     return pn.pane.HTML(
         f"""
 <div class="ha-hero">
-  <h1>{profile_label} review dashboard</h1>
+  <h1>{profile_label} review board</h1>
   <p class="ha-muted">
+    Review queue → domain map → timeline evidence → source rows.
     {summary["lab_rows"]:,} lab/vital rows from {summary["lab_start"]} to {summary["lab_end"]}.
     {wearable_line}
   </p>
@@ -455,7 +464,7 @@ def _domain_cards(repo: HealthRepository, profile: str):
 """
             )
         )
-    return pn.Column("### Domain review cards", pn.GridBox(*cards, ncols=2))
+    return pn.Column("### Domain map / review cards", pn.GridBox(*cards, ncols=2))
 
 
 def _what_changed_panel(repo: HealthRepository, profile: str):
@@ -525,9 +534,10 @@ def _overview_cards(repo: HealthRepository, profile: str):
     caveat = pn.pane.HTML(
         _status_card(
             "Inference contract",
-            "This app separates lab observations, wearable context, derived rollups, QA issues, "
-            "and inference cards. Apple Health record-level rows are not loaded by default.",
-            ["OBSERVED", "DERIVED", "WEARABLE_CONTEXT", "QA_ISSUE"],
+            "Experimental own-risk review layer. This app separates lab observations, wearable "
+            "context, derived rollups, QA issues, and inference cards. Apple Health record-level "
+            "rows are not loaded by default.",
+            ["OWN-RISK", "OBSERVED", "DERIVED", "WEARABLE_CONTEXT", "QA_ISSUE"],
         )
     )
     return pn.Column(cards, caveat)

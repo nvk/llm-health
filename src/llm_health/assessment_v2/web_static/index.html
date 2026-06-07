@@ -7,45 +7,63 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <aside class="sidebar">
+  <aside class="sidebar" aria-label="Health review controls">
     <div class="brand">
-      <span class="brand-mark">H2</span>
+      <span class="brand-mark" aria-hidden="true">H2</span>
       <div>
         <p>local health review</p>
         <h1>Assessment v2</h1>
+        <span class="brand-subtitle">Review → domain → evidence</span>
       </div>
     </div>
 
+    <section class="sidebar-note" aria-label="Own-risk notice">
+      <span class="tag qa">OWN-RISK</span>
+      <p>Private, local briefing. Not diagnosis, medical advice, a prescription, or a clinician relationship.</p>
+    </section>
+
+    <section class="control-block workflow-block">
+      <label class="control-label">Workflow</label>
+      <ol class="flow-steps">
+        <li><span>1</span>Review queue</li>
+        <li><span>2</span>Domain map</li>
+        <li><span>3</span>Timeline evidence</li>
+        <li><span>4</span>Source rows</li>
+      </ol>
+    </section>
+
     <section class="control-block">
       <label class="control-label">Profile</label>
-      <div class="segmented" id="profileControls">
-        <button data-profile="rod">Rod</button>
-        <button data-profile="cara">Cara</button>
+      <div class="segmented" id="profileControls" role="group" aria-label="Profile selector">
+        <button type="button" data-profile="rod" aria-pressed="false">Rod only</button>
+        <button type="button" data-profile="cara" aria-pressed="false">Cara only</button>
       </div>
     </section>
 
     <section class="control-block">
       <label class="control-label">Time window</label>
-      <div class="chips" id="rangeControls">
-        <button data-range="all">All</button>
-        <button data-range="30d">30d</button>
-        <button data-range="90d">90d</button>
-        <button data-range="ytd">YTD</button>
-        <button data-range="18mo">18mo</button>
+      <div class="chips" id="rangeControls" role="group" aria-label="Time window selector">
+        <button type="button" data-range="all" aria-pressed="false">All</button>
+        <button type="button" data-range="30d" aria-pressed="false">30d</button>
+        <button type="button" data-range="90d" aria-pressed="false">90d</button>
+        <button type="button" data-range="ytd" aria-pressed="false">YTD</button>
+        <button type="button" data-range="18mo" aria-pressed="false">18mo</button>
       </div>
     </section>
 
     <section class="control-block">
-      <label for="categorySelect" class="control-label">Category</label>
+      <label for="categorySelect" class="control-label">Domain / category</label>
       <select id="categorySelect"></select>
+      <p class="help-text">All categories shows stacked charts grouped by domain; focused domains keep the review packet smaller.</p>
     </section>
 
     <section class="control-block">
       <label class="control-label">Timeline mode</label>
-      <div class="segmented" id="modeControls">
-        <button data-mode="stack">Stack</button>
-        <button data-mode="overlay">Overlay</button>
+      <div class="segmented" id="modeControls" role="group" aria-label="Timeline mode selector">
+        <button type="button" data-mode="stack" aria-pressed="false">Stack</button>
+        <button type="button" data-mode="overlay" aria-pressed="false">Overlay</button>
       </div>
+      <p class="help-text">Stack keeps native units. Overlay compares timing/shape with normalized lines.</p>
     </section>
 
     <section class="control-block">
@@ -55,9 +73,9 @@
 
     <section class="control-block">
       <label class="control-label">Point aggregation</label>
-      <div class="segmented" id="aggControls">
-        <button data-agg="observed">Observed</button>
-        <button data-agg="mean-date">Mean/date</button>
+      <div class="segmented" id="aggControls" role="group" aria-label="Point aggregation selector">
+        <button type="button" data-agg="observed" aria-pressed="false">Observed</button>
+        <button type="button" data-agg="mean-date" aria-pressed="false">Mean/date</button>
       </div>
     </section>
 
@@ -66,10 +84,11 @@
       <select id="smoothSelect"></select>
     </section>
 
-    <section class="control-block toggles">
+    <section class="control-block toggles" aria-label="Timeline overlays">
       <label><input type="checkbox" id="showWeight" checked> Weight context</label>
-      <label><input type="checkbox" id="showFlags" checked> Flag rings</label>
-      <label><input type="checkbox" id="showLabels"> Point labels</label>
+      <label><input type="checkbox" id="showFlags" checked> Source flag rings</label>
+      <label><input type="checkbox" id="showLabels"> Exact date labels</label>
+      <p class="help-text">Pending results appear in review/source rows; they are not plotted unless the source contains a numeric value.</p>
     </section>
 
     <section class="control-block">
@@ -77,7 +96,7 @@
       <input id="searchBox" type="search" placeholder="ALT, bilirubin, mercury…">
     </section>
 
-    <button id="themeToggle" class="secondary full">Dark theme</button>
+    <button type="button" id="themeToggle" class="secondary full" aria-pressed="false">Dark theme</button>
   </aside>
 
   <main class="app">
@@ -85,20 +104,22 @@
       <div>
         <p class="eyebrow">OBSERVED · DERIVED · CONTEXT · QA</p>
         <h2>Longitudinal review board</h2>
-        <p class="lede">Timeline-first view with category small multiples, context rails, flags, and source provenance.</p>
+        <p class="lede">A review briefing system for de-identified longitudinal data: what needs attention, what changed, which domains are covered, and which source rows support it.</p>
+        <p class="own-risk-line">Experimental own-risk review layer — verify source rows and context before taking action.</p>
       </div>
       <div class="top-actions">
-        <button id="copyLink" class="secondary">Copy view link</button>
-        <button id="downloadCsv">Export filtered CSV</button>
+        <div class="profile-state" id="profileState" aria-live="polite"></div>
+        <button type="button" id="copyLink" class="secondary">Copy view link</button>
+        <button type="button" id="downloadCsv">Export filtered CSV</button>
       </div>
     </header>
 
-    <section class="summary-grid" id="summaryGrid"></section>
+    <section class="summary-grid" id="summaryGrid" aria-live="polite"></section>
 
-    <nav class="tabs" id="tabs">
-      <button data-section="review">Review</button>
-      <button data-section="timeline">Timeline</button>
-      <button data-section="sources">Sources</button>
+    <nav class="tabs" id="tabs" aria-label="Primary sections">
+      <button type="button" data-section="review" aria-pressed="false">Review</button>
+      <button type="button" data-section="timeline" aria-pressed="false">Timeline</button>
+      <button type="button" data-section="sources" aria-pressed="false">Sources</button>
     </nav>
 
     <section class="panel review-section" id="reviewSection">
@@ -109,6 +130,8 @@
         </div>
       </div>
       <div class="review-grid" id="reviewGrid"></div>
+      <div class="subsection-title">Domain map</div>
+      <div class="domain-map" id="domainMap" aria-live="polite"></div>
     </section>
 
     <section class="panel timeline-section" id="timelineSection">
@@ -124,6 +147,7 @@
           <span><i class="swatch band"></i>reference</span>
         </div>
       </div>
+      <div id="viewBrief" class="view-brief" aria-live="polite"></div>
       <div id="weightRail" class="weight-rail"></div>
       <div id="charts" class="charts"></div>
     </section>
@@ -133,6 +157,7 @@
         <div>
           <h3>Matching observations</h3>
           <p id="tableMeta">—</p>
+          <p class="help-text">Use this table to verify plotted points, source flags, reference ranges, and provenance notes before interpreting a chart.</p>
         </div>
       </div>
       <div class="table-wrap">

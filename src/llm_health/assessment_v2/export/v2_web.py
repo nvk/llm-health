@@ -17,6 +17,7 @@ from llm_health.assessment_v2.export.old_web import (
     _profile_context,
     _read_csv_dicts,
 )
+from llm_health.config import resolve_store_path
 
 
 @dataclass(frozen=True)
@@ -43,25 +44,27 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
     wearable_daily_csv = wiki_root / "output/data/apple-health-daily-summary.csv"
 
     observations = _read_csv_dicts(observations_csv)
-    reports = _merge_source_note_paths(_read_csv_dicts(reports_csv), wiki_root, output_dir)
+    reports = _merge_source_note_paths(_read_optional_csv_dicts(reports_csv), wiki_root, output_dir)
     wearable_daily = _read_optional_csv_dicts(wearable_daily_csv)
     profile_context = _profile_context(observations)
+    profiles = _profile_payloads(observations, wearable_daily, profile_context)
+    for profile in profiles:
+        profile_context.setdefault(profile["profile_id"], {})
 
     _copy_static_assets(output_dir)
     payload: dict[str, Any] = {
         "generated": date.today().isoformat(),
-        "source": "canonical de-identified wiki CSV exports",
+        "source": "canonical de-identified wiki CSV exports plus alias-only llm-health enrollments",
         "observations": observations,
         "reports": reports,
         "wearable_daily": wearable_daily,
         "profile_context": profile_context,
+        "profiles": profiles,
         "export_summary": {
             "observations": len(observations),
             "reports": len(reports),
             "wearable_daily": len(wearable_daily),
-            "profiles": sorted(
-                {row.get("profile_id", "") for row in observations if row.get("profile_id")}
-            ),
+            "profiles": [profile["profile_id"] for profile in profiles],
         },
     }
 
@@ -93,6 +96,80 @@ def _copy_static_assets(output_dir: Path) -> None:
         source = static_dir.joinpath(asset_name)
         with resources.as_file(source) as source_path:
             shutil.copyfile(source_path, output_dir / asset_name)
+
+
+def _profile_payloads(
+    observations: list[dict[str, str]],
+    wearable_daily: list[dict[str, str]],
+    profile_context: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return alias-only profile metadata for UI selectors, including zero-data enrollments."""
+
+    profiles: dict[str, dict[str, Any]] = {}
+
+    def add(profile_id: str | None, **metadata: Any) -> None:
+        if not profile_id:
+            return
+        alias = str(profile_id).strip().lower()
+        if not alias:
+            return
+        current = profiles.setdefault(alias, {"profile_id": alias})
+        for key, value in metadata.items():
+            if value not in (None, "", []):
+                current[key] = value
+
+    for row in observations:
+        add(row.get("profile_id"), role=row.get("family_role"))
+    for row in wearable_daily:
+        add(row.get("profile_id"), role=row.get("family_role"))
+    for profile_id in profile_context:
+        add(profile_id)
+    for profile in _enrolled_profiles_from_hub():
+        add(
+            profile.get("profile_id"),
+            birth_year=profile.get("birth_year"),
+            birth_month=profile.get("birth_month"),
+            role=profile.get("role"),
+            tags=profile.get("tags") or ["CONTEXT"],
+        )
+
+    order = {"rod": 0, "cara": 1}
+    return sorted(
+        profiles.values(),
+        key=lambda row: (order.get(row["profile_id"], 50), row["profile_id"]),
+    )
+
+
+def _enrolled_profiles_from_hub() -> list[dict[str, Any]]:
+    """Read alias-only enrolled profiles from the configured llm-health HUB, if present."""
+
+    try:
+        store_path = resolve_store_path()
+    except Exception:
+        return []
+    path = store_path / "profiles.jsonl"
+    if not path.exists():
+        return []
+    profiles: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        profile_id = row.get("profile_id")
+        if profile_id:
+            profiles.append(
+                {
+                    "profile_id": profile_id,
+                    "birth_year": row.get("birth_year"),
+                    "birth_month": row.get("birth_month"),
+                    "role": row.get("role"),
+                    "tags": row.get("tags") or ["CONTEXT"],
+                }
+            )
+    return profiles
 
 
 def _read_optional_csv_dicts(path: Path) -> list[dict[str, str]]:

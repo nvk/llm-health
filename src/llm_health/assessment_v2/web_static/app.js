@@ -27,6 +27,7 @@
   init();
 
   function init() {
+    populateProfiles();
     populateCategories();
     bindControls();
     render();
@@ -68,7 +69,7 @@
 
   function bindControls() {
     document.documentElement.dataset.theme = state.theme;
-    byId('themeToggle').textContent = state.theme === 'dark' ? 'Light theme' : 'Dark theme';
+    setThemeButton();
     byId('themeToggle').onclick = () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; render(); };
     byId('copyLink').onclick = async () => navigator.clipboard?.writeText(location.href);
     byId('downloadCsv').onclick = downloadCsv;
@@ -117,14 +118,38 @@
     byId('categorySelect').value = state.category;
   }
 
+
+  function populateProfiles() {
+    const profiles = profileOptions();
+    if (!profiles.some(profile => profile.id === state.profile)) state.profile = profiles[0]?.id || 'rod';
+    byId('profileControls').innerHTML = profiles.map(profile => `<button type="button" data-profile="${escapeAttr(profile.id)}" aria-pressed="false">${escapeHtml(profile.label)} only</button>`).join('');
+  }
+
+  function profileOptions() {
+    const byProfile = new Map();
+    const add = (id, meta = {}) => {
+      if (!id) return;
+      const clean = String(id).trim().toLowerCase();
+      if (!clean) return;
+      const existing = byProfile.get(clean) || {};
+      byProfile.set(clean, { ...existing, ...meta, id: clean, label: displayAlias(clean) });
+    };
+    for (const profile of DATA.profiles || []) add(profile.profile_id, profile);
+    for (const row of rawRows) add(row.profile_id);
+    for (const row of wearableRows) add(row.profile_id);
+    for (const id of Object.keys(DATA.profile_context || {})) add(id);
+    if (!byProfile.size) { add('rod'); add('cara'); }
+    return [...byProfile.values()].sort((a, b) => profileRank(a.id) - profileRank(b.id) || a.id.localeCompare(b.id));
+  }
+
   function render() {
     document.documentElement.dataset.theme = state.theme;
-    byId('themeToggle').textContent = state.theme === 'dark' ? 'Light theme' : 'Dark theme';
-    for (const btn of document.querySelectorAll('[data-profile]')) btn.classList.toggle('active', btn.dataset.profile === state.profile);
-    for (const btn of document.querySelectorAll('[data-range]')) btn.classList.toggle('active', btn.dataset.range === state.range);
-    for (const btn of document.querySelectorAll('[data-mode]')) btn.classList.toggle('active', btn.dataset.mode === state.mode);
-    for (const btn of document.querySelectorAll('[data-agg]')) btn.classList.toggle('active', btn.dataset.agg === state.agg);
-    for (const btn of document.querySelectorAll('[data-section]')) btn.classList.toggle('active', btn.dataset.section === state.section);
+    setThemeButton();
+    syncPressed('[data-profile]', btn => btn.dataset.profile === state.profile);
+    syncPressed('[data-range]', btn => btn.dataset.range === state.range);
+    syncPressed('[data-mode]', btn => btn.dataset.mode === state.mode);
+    syncPressed('[data-agg]', btn => btn.dataset.agg === state.agg);
+    syncPressed('[data-section]', btn => btn.dataset.section === state.section);
     byId('categorySelect').value = state.category;
     byId('scaleSelect').value = state.scale;
     byId('smoothSelect').value = state.smooth;
@@ -132,6 +157,7 @@
     byId('timelineSection').hidden = state.section !== 'timeline';
     byId('sourcesSection').hidden = state.section !== 'sources';
     const rows = filteredRows();
+    renderProfileState(rows);
     renderSummary(rows);
     renderReview(rows);
     renderTimeline(rows);
@@ -152,14 +178,28 @@
     });
   }
 
+  function renderProfileState(rows) {
+    const numeric = rows.filter(r => r.isNumeric).length;
+    const sourceFlags = rows.filter(r => r.flag_raw && !r.isPending).length;
+    const pending = rows.filter(r => r.isPending).length;
+    byId('profileState').innerHTML = [
+      tagHtml('CONTEXT', profileLabel()),
+      tagHtml('OBSERVED', `${numeric.toLocaleString()} plotted-capable`),
+      sourceFlags ? tagHtml('QA_ISSUE', `${sourceFlags} source flags`) : tagHtml('OBSERVED', 'no visible source flags'),
+      pending ? tagHtml('DATA_GAP', `${pending} pending`) : ''
+    ].join('');
+  }
+
   function renderSummary(rows) {
     const numeric = rows.filter(r => r.isNumeric);
-    const flagged = rows.filter(r => r.flag_raw || r.isPending).length;
+    const flagged = rows.filter(r => r.flag_raw && !r.isPending).length;
+    const pending = rows.filter(r => r.isPending).length;
+    const derived = numeric.filter(isDerived).length;
     const context = DATA.profile_context?.[state.profile] || {};
     const dates = rows.map(r => r.date).filter(Boolean).sort();
     byId('summaryGrid').innerHTML = [
-      metric('Rows', rows.length.toLocaleString(), `${numeric.length.toLocaleString()} numeric`),
-      metric('Flag/pending', flagged.toLocaleString(), 'source attention rows'),
+      metric('Rows', rows.length.toLocaleString(), `${numeric.length.toLocaleString()} numeric · ${derived.toLocaleString()} derived`),
+      metric('Attention', (flagged + pending).toLocaleString(), `${flagged} source flags · ${pending} pending`),
       metric('Span', dates.length ? `${dates[0]} → ${dates.at(-1)}` : '—', state.range),
       metric('Weight', Number.isFinite(context.currentWeightKg) ? `${context.currentWeightKg} kg` : '—', context.currentWeightDate || 'no context')
     ].join('');
@@ -171,39 +211,126 @@
 
   function renderReview(rows) {
     const numeric = rows.filter(r => r.isNumeric);
-    const flags = rows.filter(r => r.flag_raw || r.isPending).slice(0, 6);
+    const attention = rows.filter(r => r.flag_raw || r.isPending).sort(compareAttention).slice(0, 8);
     const context = DATA.profile_context?.[state.profile] || {};
     const latestLab = maxDate(rows);
     const cards = [];
-    cards.push(reviewCard('Current context', [
+    byId('domainMap').innerHTML = renderDomainMap(rows);
+    cards.push(reviewCard('1 · Current context', [
       ['CONTEXT', context.currentWeightKg ? `Latest weight ${context.currentWeightKg} kg on ${context.currentWeightDate}` : 'No weight context for this profile'],
-      ['OBSERVED', `${numeric.length} numeric observations in this view`]
-    ]));
-    if (flags.length) cards.push(reviewCard('Needs attention', flags.map(r => ['FLAG', `${r.date} · ${r.analyte_en}: ${r.value_raw || r.interpretation_en || 'pending'} ${r.unit_raw || ''}`])));
+      ['OBSERVED', `${numeric.length.toLocaleString()} numeric observations in this filtered view`],
+      ['DERIVED', `${numeric.filter(isDerived).length.toLocaleString()} derived/calculated rows are explicitly tagged`]
+    ], 'context-card'));
+    if (attention.length) {
+      cards.push(reviewCard('2 · Attention queue', attention.map(r => [attentionTag(r), attentionText(r)]), 'qa-card'));
+    } else {
+      cards.push(reviewCard('2 · Attention queue', [
+        ['OBSERVED', 'No source-flagged or pending rows in this filtered view.'],
+        ['QA_ISSUE', 'Absence of flags is not absence of risk; it only reflects the loaded source ranges and current filters.']
+      ], 'ok-card'));
+    }
     const wearableSummary = wearableReviewLines();
-    if (wearableSummary.length) cards.push(reviewCard('Wearable context', wearableSummary));
-    cards.push(reviewCard('Timeline posture', [
+    if (wearableSummary.length) {
+      cards.push(reviewCard('3 · Wearable context', wearableSummary, 'context-card'));
+    } else {
+      cards.push(reviewCard('3 · Wearable context', [
+        ['DATA_GAP', `No wearable daily summary rows are loaded for ${profileLabel()} in this window.`],
+        ['WEARABLE_CONTEXT', 'If Apple/fitness data exists, add daily rollups before using activity/recovery context.']
+      ], 'gap-card'));
+    }
+    cards.push(reviewCard('4 · Interpretation guardrails', [
+      ['QA_ISSUE', 'Source flag rings mirror lab/source flags; they are not independently judged by the app.'],
+      ['DATA_GAP', 'Pending/non-numeric results stay in review and source rows, but are not plotted as dots.'],
+      ['CONTEXT', 'Interpret with symptoms, meds, supplements, illness, fasting, exercise, and specimen/method changes.']
+    ], 'qa-card'));
+    cards.push(reviewCard('5 · Timeline posture', [
       ['OBSERVED', `Latest visible date ${latestLab ? iso(latestLab) : '—'}`],
-      ['DATA_GAP', 'Interpret patterns with clinician context, meds/supplements, symptoms, and source references.']
-    ]));
+      ['CONTEXT', `${state.category} · ${state.range} · ${state.mode} · ${scaleLabel(effectiveScale(state.mode))}`]
+    ], 'context-card'));
     byId('reviewGrid').innerHTML = cards.join('');
   }
 
-  function reviewCard(title, rows) {
-    return `<article class="review-card"><strong>${escapeHtml(title)}</strong>${rows.map(([tag,text]) => `<div><span class="tag ${tagClass(tag)}">${escapeHtml(tag)}</span>${escapeHtml(text)}</div>`).join('')}</article>`;
+  function reviewCard(title, rows, variant = '') {
+    return `<article class="review-card ${escapeAttr(variant)}"><strong>${escapeHtml(title)}</strong>${rows.map(([tag,text]) => `<div>${tagHtml(tag)}${escapeHtml(text)}</div>`).join('')}</article>`;
   }
 
   function renderTimeline(rows) {
     const numeric = rows.filter(r => r.isNumeric);
     const groups = groupSeries(numeric);
-    byId('timelineTitle').textContent = `${state.category} · ${state.mode === 'overlay' ? 'overlay' : 'stacked small multiples'}`;
-    byId('timelineMeta').textContent = `${numeric.length} numeric points · ${groups.length} marker/unit series · ${state.range} · ${scaleLabel(effectiveScale(state.mode))} · ${aggLabel()} · ${smoothLabel()}`;
+    byId('timelineTitle').textContent = `${state.category} · ${state.mode === 'overlay' ? 'overlay comparison' : 'stacked small multiples'}`;
+    byId('timelineMeta').textContent = `${numeric.length.toLocaleString()} numeric points · ${groups.length.toLocaleString()} marker/unit series · ${state.range} · ${scaleLabel(effectiveScale(state.mode))} · ${aggLabel()} · ${smoothLabel()}`;
+    byId('viewBrief').innerHTML = viewBrief(rows, groups);
     byId('weightRail').innerHTML = state.showWeight ? weightRail() : '';
     if (!groups.length) {
-      byId('charts').innerHTML = '<div class="empty">No numeric observations match this view.</div>';
+      byId('charts').innerHTML = '<div class="empty">No numeric observations match this view. Check profile, time window, category, and search filters.</div>';
       return;
     }
     byId('charts').innerHTML = state.mode === 'overlay' ? overlayCards(groups) : stackedCards(groups);
+  }
+
+
+  function renderDomainMap(rows) {
+    const categories = domainCategories();
+    if (!categories.length) return '<div class="empty">No domains available for this profile.</div>';
+    return categories.map(category => domainCard(domainStats(category, rows))).join('');
+  }
+
+  function domainCategories() {
+    if (state.category !== 'All categories') return [state.category];
+    const cats = new Set(rawRows.filter(r => r.profile_id === state.profile).map(r => canonicalCategory(r.panel_en || 'Other')));
+    return [...cats].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  }
+
+  function domainStats(category, visibleRows) {
+    const rows = visibleRows.filter(r => canonicalCategory(r.panel_en || 'Other') === category);
+    const numeric = rows.filter(r => r.isNumeric);
+    const pending = rows.filter(r => r.isPending).length;
+    const sourceFlags = rows.filter(r => r.flag_raw && !r.isPending).length;
+    const derived = numeric.filter(isDerived).length;
+    const series = new Set(numeric.map(r => `${r.analyte_en}||${r.unit_raw || ''}`));
+    const latest = maxDate(rows);
+    let status = 'covered';
+    let label = 'covered';
+    let tag = 'OBSERVED';
+    if (!rows.length) { status = 'data-gap'; label = 'no rows in view'; tag = 'DATA_GAP'; }
+    else if (pending) { status = 'monitor'; label = `${pending} pending`; tag = 'DATA_GAP'; }
+    else if (sourceFlags) { status = 'needs-review'; label = `${sourceFlags} source flags`; tag = 'QA_ISSUE'; }
+    else if (derived) { status = 'monitor'; label = `${derived} derived`; tag = 'DERIVED'; }
+    return { category, rows: rows.length, numeric: numeric.length, pending, sourceFlags, derived, series: series.size, latest, status, label, tag };
+  }
+
+  function domainCard(stat) {
+    const body = stat.rows
+      ? `${stat.numeric.toLocaleString()} numeric rows across ${stat.series.toLocaleString()} marker/unit series.`
+      : 'No rows after the current profile, time, category, and search filters.';
+    const details = [
+      `${stat.rows.toLocaleString()} rows`,
+      `${stat.sourceFlags.toLocaleString()} flags`,
+      `${stat.pending.toLocaleString()} pending`,
+      stat.latest ? `latest ${iso(stat.latest)}` : 'latest —'
+    ];
+    return `<article class="domain-card ${escapeAttr(stat.status)}"><header><strong>${escapeHtml(stat.category)}</strong>${tagHtml(stat.tag, stat.label)}</header><p>${escapeHtml(body)}</p><div class="domain-meta">${details.map(d => `<span>${escapeHtml(d)}</span>`).join('')}</div></article>`;
+  }
+
+  function viewBrief(rows, groups) {
+    const numeric = rows.filter(r => r.isNumeric);
+    const flags = rows.filter(r => r.flag_raw && !r.isPending).length;
+    const pending = rows.filter(r => r.isPending).length;
+    const span = numeric.length ? `${minIso(numeric)} → ${maxIso(numeric)}` : 'no plotted span';
+    const weightRows = rawRows.filter(r => r.profile_id === state.profile && r.analyte_en.toLowerCase() === 'weight' && r.isNumeric);
+    const modeNote = state.mode === 'overlay'
+      ? `${scaleLabel(effectiveScale('overlay'))}; compare direction/timing, not units.`
+      : `${scaleLabel(effectiveScale('stack'))}; raw units stay separated.`;
+    return [
+      briefItem('View scope', 'CONTEXT', `${profileLabel()} · ${state.category} · ${state.range}`, `Search${state.search ? `: ${state.search}` : ': none'}`),
+      briefItem('Plot semantics', 'OBSERVED', `${groups.length.toLocaleString()} series · ${span}`, modeNote),
+      briefItem('Source state', flags ? 'QA_ISSUE' : pending ? 'DATA_GAP' : 'OBSERVED', `${flags} flags · ${pending} pending`, 'Flag rings are source flags; pending rows are not plotted dots.'),
+      briefItem('Context overlays', state.showWeight ? 'CONTEXT' : 'DATA_GAP', state.showWeight ? `weight on · ${weightRows.length} rows` : 'weight off', 'Weight is normalized when overlaid on lab units.')
+    ].join('');
+  }
+
+  function briefItem(title, tag, headline, detail) {
+    return `<article class="brief-item">${tagHtml(tag)}<strong>${escapeHtml(headline)}</strong><p>${escapeHtml(title)} · ${escapeHtml(detail)}</p></article>`;
   }
 
   function groupSeries(rows) {
@@ -231,7 +358,7 @@
 
   function categorySection(category, body) {
     const count = (categoryMap.get(category) || []).filter(r => r.profile_id === state.profile).length;
-    return `<section class="category-section"><div class="category-head"><strong>${escapeHtml(category)}</strong><span>${count.toLocaleString()} visible-capable rows</span></div>${body}</section>`;
+    return `<section class="category-section"><div class="category-head"><strong>${escapeHtml(category)}</strong><span>${count.toLocaleString()} profile rows available</span></div>${body}</section>`;
   }
 
   function chartCard(group) {
@@ -241,7 +368,8 @@
     if (!points.length) return '';
     const ref = prepared.scale === 'raw' ? referenceFor(rawPoints) : null;
     const refText = ref?.label ? ` · ref ${ref.label}` : '';
-    return `<article class="chart-card"><div class="chart-title"><strong>${escapeHtml(group.name)}${group.unit ? ` (${escapeHtml(group.unit)})` : ''}</strong><span>${points.length} points · ${points[0].date} → ${points.at(-1).date} · ${escapeHtml(prepared.note)}${escapeHtml(refText)}</span></div>${svgFor(points, group, prepared)}</article>`;
+    const title = `${group.name}${group.unit ? ` (${group.unit})` : ''}`;
+    return `<article class="chart-card"><div class="chart-title"><div class="chart-heading"><strong>${escapeHtml(title)}</strong><div class="chart-tags">${seriesTagHtml(rawPoints)}</div></div><span>${points.length} points · ${points[0].date} → ${points.at(-1).date} · ${escapeHtml(prepared.note)}${escapeHtml(refText)}</span></div>${svgFor(points, group, prepared)}</article>`;
   }
 
   function svgFor(points, group, prepared) {
@@ -278,7 +406,7 @@
     const points = useful.flatMap(g => g.rows);
     const dateSpan = points.length ? `${minIso(points)} → ${maxIso(points)}` : '—';
     const legend = useful.map((g, i) => `<span><i class="swatch" style="background:${lineColor(i)}"></i>${escapeHtml(g.name)}</span>`).join('');
-    return `<article class="chart-card overlay-card"><div class="chart-title"><strong>${escapeHtml(category)} overlay</strong><span>${useful.length} series · ${dateSpan} · ${escapeHtml(scaleLabel(effectiveScale('overlay')))}${hidden ? ` · ${hidden} hidden to keep readable` : ''}</span></div><div class="overlay-note">${escapeHtml(overlayNote())}</div><div class="inline-legend">${legend}</div>${overlaySvg(useful)}</article>`;
+    return `<article class="chart-card overlay-card"><div class="chart-title"><div class="chart-heading"><strong>${escapeHtml(category)} overlay</strong><div class="chart-tags">${seriesTagHtml(points)}${tagHtml('INFERENCE', 'NORMALIZED')}</div></div><span>${useful.length} series · ${dateSpan} · ${escapeHtml(scaleLabel(effectiveScale('overlay')))}${hidden ? ` · ${hidden} hidden to keep readable` : ''}</span></div><div class="overlay-note">${escapeHtml(overlayNote())}</div><div class="inline-legend">${legend}</div>${overlaySvg(useful)}</article>`;
   }
 
   function overlaySvg(groups) {
@@ -359,13 +487,13 @@
     const x = t => left + ((t - minX) / Math.max(1, maxX - minX)) * (w - left - right);
     const y = v => top + (1 - ((v - minY) / (maxY - minY))) * (h - top - bottom);
     const d = rows.map((r,i) => `${i ? 'L' : 'M'}${x(r.time).toFixed(1)},${y(r.kg).toFixed(1)}`).join(' ');
-    return `<article class="chart-card"><div class="chart-title"><strong>Weight context</strong><span>${rows.length} points · latest ${round(rows.at(-1).kg)} kg on ${rows.at(-1).date}</span></div><svg viewBox="0 0 ${w} ${h}"><path class="weight-line" d="${d}"/>${rows.map(r => `<circle class="weight-point" cx="${x(r.time)}" cy="${y(r.kg)}" r="4"><title>${r.date}: ${round(r.kg)} kg</title></circle>`).join('')}<text class="tick-label" x="8" y="${y(maxY)+4}">${round(maxY)}kg</text><text class="tick-label" x="8" y="${y(minY)+4}">${round(minY)}kg</text></svg></article>`;
+    return `<article class="chart-card"><div class="chart-title"><div class="chart-heading"><strong>Weight context</strong><div class="chart-tags">${tagHtml('CONTEXT', 'CONTEXT')}</div></div><span>${rows.length} points · latest ${round(rows.at(-1).kg)} kg on ${rows.at(-1).date}</span></div><svg viewBox="0 0 ${w} ${h}" aria-label="weight context timeline"><path class="weight-line" d="${d}"/>${rows.map(r => `<circle class="weight-point" cx="${x(r.time)}" cy="${y(r.kg)}" r="4"><title>${r.date}: ${round(r.kg)} kg</title></circle>`).join('')}<text class="tick-label" x="8" y="${y(maxY)+4}">${round(maxY)}kg</text><text class="tick-label" x="8" y="${y(minY)+4}">${round(minY)}kg</text></svg></article>`;
   }
 
   function renderTable(rows) {
     const visible = rows.slice().sort((a,b) => b.time - a.time).slice(0, 500);
-    byId('tableMeta').textContent = `Showing ${visible.length} of ${rows.length} rows`;
-    byId('rowsTable').innerHTML = visible.map(r => `<tr><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.panel_en)}</td><td>${escapeHtml(r.analyte_en)}</td><td class="result">${escapeHtml(r.value_raw)}</td><td>${escapeHtml(r.reference_range_raw)}</td><td>${r.flag_raw ? `<span class="tag flag">${escapeHtml(r.flag_raw)}</span>` : r.isPending ? '<span class="tag gap">PENDING</span>' : ''}</td><td>${sourceLink(r)}</td></tr>`).join('') || '<tr><td colspan="7">No rows.</td></tr>';
+    byId('tableMeta').textContent = `Showing ${visible.length.toLocaleString()} of ${rows.length.toLocaleString()} rows for ${profileLabel()} · ${state.category} · ${state.range}`;
+    byId('rowsTable').innerHTML = visible.map(r => `<tr><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.panel_en)}</td><td>${escapeHtml(r.analyte_en)}</td><td class="result">${escapeHtml(r.value_raw)}</td><td>${escapeHtml(r.reference_range_raw)}</td><td>${flagCell(r)}</td><td>${sourceLink(r)}</td></tr>`).join('') || '<tr><td colspan="7">No rows.</td></tr>';
   }
 
   function sourceLink(r) {
@@ -580,7 +708,25 @@
     return Math.sqrt(variance);
   }
   function weightKg(r) { const v = r.num; const u = (r.unit_raw || '').toLowerCase(); return ['lb','lbs','pound','pounds'].includes(u) ? v * 0.45359237 : v; }
-  function tagClass(tag) { return tag === 'FLAG' ? 'flag' : tag === 'CONTEXT' || tag === 'WEARABLE_CONTEXT' ? 'context' : tag === 'DATA_GAP' ? 'gap' : tag === 'DERIVED' ? 'derived' : 'obs'; }
+  function setThemeButton() { byId('themeToggle').textContent = state.theme === 'dark' ? 'Light theme' : 'Dark theme'; byId('themeToggle').setAttribute('aria-pressed', state.theme === 'dark' ? 'true' : 'false'); }
+  function syncPressed(selector, isActive) { for (const btn of document.querySelectorAll(selector)) { const active = isActive(btn); btn.classList.toggle('active', active); btn.setAttribute('aria-pressed', active ? 'true' : 'false'); } }
+  function profileLabel() { return `${displayAlias(state.profile)} only`; }
+  function displayAlias(id) { return String(id || '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Profile'; }
+  function profileRank(id) { const order = ['rod', 'cara']; const index = order.indexOf(id); return index === -1 ? 50 : index; }
+  function isDerived(r) { return /derived|calculated|ratio|index/i.test(`${r.result_type || ''} ${r.analyte_en || ''} ${r.notes || ''}`); }
+  function attentionTag(r) { return r.isPending ? 'DATA_GAP' : 'QA_ISSUE'; }
+  function attentionText(r) { return `${r.date || 'undated'} · ${r.analyte_en}: ${r.value_raw || r.interpretation_en || 'pending'}${r.unit_raw ? ` ${r.unit_raw}` : ''}${r.flag_raw ? ` · source flag ${r.flag_raw}` : ''}`; }
+  function compareAttention(a, b) { const flagRank = (b.flag_raw || b.isPending ? 1 : 0) - (a.flag_raw || a.isPending ? 1 : 0); return flagRank || (b.time || 0) - (a.time || 0); }
+  function tagHtml(tag, label = tag) { return `<span class="tag ${tagClass(tag)}">${escapeHtml(label)}</span>`; }
+  function seriesTagHtml(rows) {
+    const tags = [];
+    if (rows.some(isDerived)) tags.push(['DERIVED', 'DERIVED']); else tags.push(['OBSERVED', 'OBSERVED']);
+    if (rows.some(r => r.flag_raw && !r.isPending)) tags.push(['QA_ISSUE', 'SOURCE FLAG']);
+    if (rows.some(r => r.isPending)) tags.push(['DATA_GAP', 'PENDING']);
+    return tags.map(([tag, label]) => tagHtml(tag, label)).join('');
+  }
+  function flagCell(r) { if (r.isPending) return tagHtml('DATA_GAP', 'PENDING'); if (r.flag_raw) return tagHtml('QA_ISSUE', r.flag_raw); return ''; }
+  function tagClass(tag) { return tag === 'FLAG' ? 'flag' : tag === 'QA_ISSUE' ? 'qa' : tag === 'INFERENCE' ? 'inference' : tag === 'WEARABLE_CONTEXT' ? 'wearable' : tag === 'CONTEXT' ? 'context' : tag === 'DATA_GAP' ? 'gap' : tag === 'DERIVED' ? 'derived' : 'obs'; }
   function iso(d) { return d.toISOString().slice(0,10); }
   function round(v) { return Number.isFinite(v) ? Number(v.toFixed(Math.abs(v) < 10 ? 2 : 1)).toString() : '—'; }
   function byId(id) { return document.getElementById(id); }
