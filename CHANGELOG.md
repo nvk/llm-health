@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.14 - 2026-06-07
+
+- Added resolved-flag semantics to the Assessment board so older abnormal source flags are demoted when later comparable normal follow-up exists.
+- Added active vs resolved flag counts, source-row focus, chart badges, muted resolved dots, and CSV fields.
+
 ## 0.0.13 - 2026-06-07
 
 - Added `health family` alias-only kinship graph and family-history commands.

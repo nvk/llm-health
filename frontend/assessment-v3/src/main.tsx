@@ -64,8 +64,9 @@ type TimeRange = 'all' | '30d' | '90d' | 'ytd' | '18mo';
 type TimelineMode = 'stack' | 'overlay';
 type ScaleMode = 'auto' | 'raw' | 'norm' | 'center' | 'pctmean' | 'pctfirst' | 'z' | 'log';
 type AggMode = 'observed' | 'mean-date';
-type RowFocus = 'all' | 'flags' | 'pending' | 'numeric';
+type RowFocus = 'all' | 'flags' | 'resolved' | 'pending' | 'numeric';
 type OverlayPreset = 'smart' | 'current' | 'flagged' | 'recent' | 'core' | 'context';
+type FlagStatus = 'none' | 'active' | 'resolved';
 
 type RawObservation = Record<string, string | undefined>;
 type RawWearable = Record<string, string | undefined>;
@@ -113,6 +114,10 @@ type LabPoint = {
   resultType: string;
   refRaw: string;
   flagRaw: string;
+  flagStatus: FlagStatus;
+  resolvedByDate?: string;
+  resolvedByValue?: string;
+  resolvedById?: string;
   interpretation: string;
   specimen: string;
   method: string;
@@ -144,6 +149,9 @@ type ChartPoint = {
   rawValue: number;
   valueRaw: string;
   flagRaw: string;
+  flagStatus: FlagStatus;
+  resolvedByDate?: string;
+  resolvedByValue?: string;
   pending?: boolean;
   sourceId?: string;
   refRaw?: string;
@@ -232,7 +240,7 @@ const TAG_LABELS: Record<string, string> = {
 };
 
 function App() {
-  const labRows = useMemo(() => (DATA.observations || []).map(normalizeLab).filter(Boolean) as LabPoint[], []);
+  const labRows = useMemo(() => markResolvedFlags((DATA.observations || []).map(normalizeLab).filter(Boolean) as LabPoint[]), []);
   const wearableRows = useMemo(() => (DATA.wearable_daily || []).map(normalizeWearable).filter(Boolean) as WearablePoint[], []);
   const profileOptions = useMemo(() => buildProfiles(labRows, wearableRows), [labRows, wearableRows]);
   const [state, setState] = useState<UiState>(() => initialState(profileOptions));
@@ -459,7 +467,8 @@ function Header({ state, rows, allRows, series, profileOptions, setState }: {
   const profile = profileOptions.find((option) => option.value === state.profile)?.label || displayAlias(state.profile);
   const latest = latestDate(rows);
   const totalLatest = latestDate(allRows);
-  const flagged = rows.filter((row) => row.flagRaw && !row.pending).length;
+  const flagged = activeFlagRows(rows).length;
+  const resolved = resolvedFlagRows(rows).length;
   const pending = rows.filter((row) => row.pending).length;
   const themeToggle = () => setState((current) => ({ ...current, theme: current.theme === 'dark' ? 'light' : 'dark' }));
   return (
@@ -490,7 +499,8 @@ function Header({ state, rows, allRows, series, profileOptions, setState }: {
       </Group>
       <Group mt="lg" gap="sm" className="hero-metrics">
         <MetricPill label={`${series.length.toLocaleString()} chart series`} icon={<IconChartDots3 size={15} />} onClick={() => setState((current) => ({ ...current, section: 'timeline' }))} />
-        <MetricPill label={`${flagged.toLocaleString()} source flags`} icon={<IconFlag size={15} />} tone={flagged ? 'warn' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: flagged ? 'flags' : 'all' }))} />
+        <MetricPill label={`${flagged.toLocaleString()} active flags`} icon={<IconFlag size={15} />} tone={flagged ? 'warn' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: flagged ? 'flags' : 'all' }))} />
+        {resolved ? <MetricPill label={`${resolved.toLocaleString()} resolved`} icon={<IconTimeline size={15} />} tone="ok" onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: 'resolved' }))} /> : null}
         <MetricPill label={`${pending.toLocaleString()} pending`} icon={<IconAlertTriangle size={15} />} tone={pending ? 'bad' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: pending ? 'pending' : 'all' }))} />
         <MetricPill label={`latest ${latest || totalLatest || '—'}`} icon={<IconTimeline size={15} />} />
       </Group>
@@ -509,12 +519,13 @@ function SummaryGrid({ rows, series, state, setState }: {
   setState: React.Dispatch<React.SetStateAction<UiState>>;
 }) {
   const numeric = rows.filter((row) => row.value !== null).length;
-  const flagged = rows.filter((row) => row.flagRaw && !row.pending).length;
+  const flagged = activeFlagRows(rows).length;
+  const resolved = resolvedFlagRows(rows).length;
   const pending = rows.filter((row) => row.pending).length;
   const derived = rows.filter((row) => row.derived).length;
   const cards = [
     { title: 'Evidence points', value: numeric.toLocaleString(), note: `${series.length} plotted series`, icon: IconChartDots3, section: 'timeline' as SectionId },
-    { title: 'Source flags', value: flagged.toLocaleString(), note: flagged ? 'Click to audit' : 'None in filter', icon: IconFlag, section: 'sources' as SectionId, focus: 'flags' as RowFocus },
+    { title: 'Active flags', value: flagged.toLocaleString(), note: flagged ? 'Click to audit' : resolved ? `${resolved} resolved by later tests` : 'None in filter', icon: IconFlag, section: 'sources' as SectionId, focus: flagged ? 'flags' as RowFocus : resolved ? 'resolved' as RowFocus : 'all' as RowFocus },
     { title: 'Pending rows', value: pending.toLocaleString(), note: 'Never plotted as dots', icon: IconAlertTriangle, section: 'sources' as SectionId, focus: 'pending' as RowFocus },
     { title: 'Derived rows', value: derived.toLocaleString(), note: 'Visible as Derived tags', icon: IconActivity, section: 'sources' as SectionId },
   ];
@@ -547,11 +558,12 @@ function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
   state: UiState;
   setState: React.Dispatch<React.SetStateAction<UiState>>;
 }) {
-  const flagged = rows.filter((row) => row.flagRaw && !row.pending);
+  const flagged = activeFlagRows(rows);
+  const resolved = resolvedFlagRows(rows);
   const pending = rows.filter((row) => row.pending);
   const recent = [...rows].sort((a, b) => b.time - a.time).slice(0, 8);
   const rowsByCategory = countBy(allRows, (row) => row.category);
-  const domainCards = [...groups.entries()].map(([category, list]) => ({ category, count: list.length, flags: list.flatMap((s) => s.points).filter((p) => p.flagRaw).length }));
+  const domainCards = [...groups.entries()].map(([category, list]) => ({ category, count: list.length, flags: list.reduce((sum, s) => sum + flagCount(s), 0), resolved: list.reduce((sum, s) => sum + resolvedFlagCount(s), 0) }));
 
   return (
     <Stack gap="lg">
@@ -559,9 +571,9 @@ function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
         <ReviewCard
           title="Needs source audit"
           tag={flagged.length ? 'QA_ISSUE' : 'OBSERVED'}
-          value={`${flagged.length} flagged`}
-          body={flagged.length ? summarizeMarkers(flagged) : 'No source-flagged rows in this filter.'}
-          onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: flagged.length ? 'flags' : 'all' }))}
+          value={`${flagged.length} active`}
+          body={flagged.length ? summarizeMarkers(flagged) : resolved.length ? `${resolved.length} older flag(s) appear resolved by later follow-up.` : 'No active source flags in this filter.'}
+          onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: flagged.length ? 'flags' : resolved.length ? 'resolved' : 'all' }))}
         />
         <ReviewCard
           title="Pending / nonnumeric"
@@ -594,7 +606,7 @@ function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
                 <Text fw={800}>{domain.category}</Text>
                 <Badge color={domain.flags ? 'red' : 'gray'} variant="light">{domain.count} charts</Badge>
               </Group>
-              <Text size="sm" c="dimmed">{rowsByCategory.get(domain.category) || 0} observations · {domain.flags} flags</Text>
+              <Text size="sm" c="dimmed">{rowsByCategory.get(domain.category) || 0} observations · {domain.flags} active · {domain.resolved} resolved</Text>
             </button>
           ))}
         </SimpleGrid>
@@ -687,7 +699,8 @@ function TimelineBoard({ series, state, setState }: {
                     <Group justify="space-between" pr="md">
                       <Text fw={900}>{category}</Text>
                       <Group gap="xs">
-                        {stats.flags ? <Badge color="red" variant="light">{stats.flags} flags</Badge> : null}
+                        {stats.flags ? <Badge color="red" variant="light">{stats.flags} active</Badge> : null}
+                        {!stats.flags && stats.resolved ? <Badge color="green" variant="light">{stats.resolved} resolved</Badge> : null}
                         <Badge variant="light">{list.length} charts</Badge>
                         <Badge color="gray" variant="light">latest {stats.latest || '—'}</Badge>
                       </Group>
@@ -723,7 +736,8 @@ function TimelineBoard({ series, state, setState }: {
 
 function SeriesCard({ series, state }: { series: Series; state: UiState }) {
   const prepared = prepareSeries(series, state, effectiveScale(state, 1));
-  const flags = series.points.filter((point) => point.flagRaw).length;
+  const flags = flagCount(series);
+  const resolved = resolvedFlagCount(series);
   const latest = series.points.at(-1);
   return (
     <Card p="md" radius="xl" className="chart-card">
@@ -736,7 +750,7 @@ function SeriesCard({ series, state }: { series: Series; state: UiState }) {
           </Group>
           <Text size="xs" c="dimmed">{series.category} · {series.points.length} points · latest {latest ? `${latest.date} ${formatValue(latest.rawValue, series.unit)}` : '—'} · {series.ref?.label || 'range missing'}</Text>
         </div>
-        {flags ? <Badge color="red" variant="light">{flags} flags</Badge> : <Badge color="gray" variant="light">clean</Badge>}
+        {flags ? <Badge color="red" variant="light">{flags} active</Badge> : resolved ? <Badge color="green" variant="light">{resolved} resolved</Badge> : <Badge color="gray" variant="light">clean</Badge>}
       </Group>
       <ChartCanvas series={prepared} state={state} />
     </Card>
@@ -824,10 +838,10 @@ function SourcesTable({ rows, totalRows, rowFocus, setState }: {
       <Group justify="space-between" align="flex-start" mb="md">
         <div>
           <Title order={3}>Source rows</Title>
-          <Text size="sm" c="dimmed">{visible.length.toLocaleString()} shown of {totalRows.toLocaleString()} matching rows. Pending rows are source evidence, not chart dots.</Text>
+          <Text size="sm" c="dimmed">{visible.length.toLocaleString()} shown of {totalRows.toLocaleString()} matching rows. Resolved flags are historical, not active alerts.</Text>
         </div>
         <SegmentedControl
-          data={[{ value: 'all', label: 'All' }, { value: 'flags', label: 'Flags' }, { value: 'pending', label: 'Pending' }, { value: 'numeric', label: 'Numeric' }]}
+          data={[{ value: 'all', label: 'All' }, { value: 'flags', label: 'Active' }, { value: 'resolved', label: 'Resolved' }, { value: 'pending', label: 'Pending' }, { value: 'numeric', label: 'Numeric' }]}
           value={rowFocus}
           onChange={(value) => setState((current) => ({ ...current, rowFocus: value as RowFocus }))}
         />
@@ -850,13 +864,13 @@ function SourceTableRow({ row }: { row: LabPoint }) {
   const sourceNote = String(report?.source_note_path || row.sourceNotePath || '');
   const sourceCell = sourceNote ? <a href={sourceNote} target="_blank" rel="noreferrer">source note</a> : truncate(row.sourceId, 36);
   return (
-    <Table.Tr>
+    <Table.Tr className={row.flagStatus === 'resolved' ? 'resolved-row' : undefined}>
       <Table.Td><Text fw={700}>{row.date}</Text></Table.Td>
       <Table.Td>{row.category}</Table.Td>
       <Table.Td><Group gap="xs"><Text fw={700}>{row.marker}</Text>{row.derived ? <Badge size="xs" color="violet" data-tag="DERIVED" title="DERIVED">{tagLabel('DERIVED')}</Badge> : null}</Group></Table.Td>
       <Table.Td><Text ff="monospace">{row.valueRaw || (row.value !== null ? formatValue(row.value, row.unit) : '—')}</Text></Table.Td>
       <Table.Td><Text size="sm" c="dimmed">{row.refRaw || '—'}</Text></Table.Td>
-      <Table.Td>{row.pending ? <Badge color="orange">pending</Badge> : row.flagRaw ? <Badge color="red">{row.flagRaw}</Badge> : <Badge color="green" variant="light">ok</Badge>}</Table.Td>
+      <Table.Td><FlagBadge row={row} /></Table.Td>
       <Table.Td>{sourceCell}</Table.Td>
     </Table.Tr>
   );
@@ -871,17 +885,43 @@ function SourceMiniRow({ row }: { row: LabPoint }) {
       </div>
       <Group gap="xs" wrap="nowrap">
         <Text ff="monospace" fw={800}>{row.valueRaw || formatValue(row.value || 0, row.unit)}</Text>
-        {row.pending ? <Badge color="orange">pending</Badge> : row.flagRaw ? <Badge color="red">{row.flagRaw}</Badge> : null}
+        {row.pending || row.flagRaw ? <FlagBadge row={row} compact /> : null}
       </Group>
     </Group>
   );
 }
 
+function FlagBadge({ row, compact = false }: { row: LabPoint; compact?: boolean }) {
+  if (row.pending) return <Badge color="orange">pending</Badge>;
+  if (row.flagStatus === 'resolved') {
+    const label = compact ? 'resolved' : `resolved ${row.flagRaw.toLowerCase()}`;
+    return (
+      <Stack gap={2}>
+        <Badge color="green" variant="light">{label}</Badge>
+        {!compact && row.resolvedByDate ? <Text size="xs" c="dimmed">by {row.resolvedByDate}{row.resolvedByValue ? ` · ${row.resolvedByValue}` : ''}</Text> : null}
+      </Stack>
+    );
+  }
+  if (row.flagStatus === 'active') return <Badge color="red">{row.flagRaw}</Badge>;
+  return compact ? null : <Badge color="green" variant="light">ok</Badge>;
+}
+
 function FlagDot(props: any & { showFlags: boolean; color: string }) {
   const { cx, cy, payload, showFlags, color } = props;
   if (cx == null || cy == null) return null;
-  const flagged = showFlags && payload?.flagRaw;
-  return <circle cx={cx} cy={cy} r={flagged ? 5 : 4} fill="var(--paper)" stroke={flagged ? 'var(--flag)' : color} strokeWidth={flagged ? 3 : 2.2} />;
+  const active = showFlags && payload?.flagStatus === 'active';
+  const resolved = showFlags && payload?.flagStatus === 'resolved';
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={active ? 5 : resolved ? 4.5 : 4}
+      fill="var(--paper)"
+      stroke={active ? 'var(--flag)' : resolved ? 'var(--range-line)' : color}
+      strokeWidth={active ? 3 : resolved ? 2.4 : 2.2}
+      strokeDasharray={resolved ? '2 2' : undefined}
+    />
+  );
 }
 
 type TooltipProps = { active?: boolean; payload?: any[]; label?: unknown };
@@ -895,7 +935,8 @@ function PointTooltip({ active, payload, label, series }: TooltipProps & { serie
       <Text size="sm">{String(label || '')}: <b>{formatValue(point.rawValue, series.unit)}</b></Text>
       {point.valueRaw && point.valueRaw !== String(point.rawValue) ? <Text size="xs" c="dimmed">source: {point.valueRaw}</Text> : null}
       {point.refRaw ? <Text size="xs" c="dimmed">ref: {point.refRaw}</Text> : null}
-      {point.flagRaw ? <Badge color="red" size="xs">{point.flagRaw}</Badge> : null}
+      {point.flagStatus === 'active' ? <Badge color="red" size="xs">{point.flagRaw}</Badge> : null}
+      {point.flagStatus === 'resolved' ? <Badge color="green" variant="light" size="xs">resolved {point.flagRaw.toLowerCase()} by {point.resolvedByDate}</Badge> : null}
     </div>
   );
 }
@@ -945,6 +986,7 @@ function normalizeLab(row: RawObservation): LabPoint | null {
     resultType: clean(row.result_type),
     refRaw: clean(row.reference_range_raw),
     flagRaw: normalizeFlag(row.flag_raw),
+    flagStatus: normalizeFlag(row.flag_raw) && !pending ? 'active' : 'none',
     interpretation: clean(row.interpretation_en),
     specimen: clean(row.specimen),
     method: clean(row.method),
@@ -954,6 +996,88 @@ function normalizeLab(row: RawObservation): LabPoint | null {
     derived: /^derived|derived|ratio|index/i.test(marker) || /DERIVED/i.test(`${row.notes || ''} ${row.source_id || ''}`),
     sourceNotePath: clean(report?.source_note_path),
   };
+}
+
+function markResolvedFlags(rows: LabPoint[]): LabPoint[] {
+  const groups = new Map<string, LabPoint[]>();
+  rows.forEach((row) => {
+    const key = `${row.profileId}::${row.category}::${markerFamily(row.marker)}`;
+    groups.set(key, [...(groups.get(key) || []), row]);
+  });
+
+  const resolutions = new Map<string, LabPoint>();
+  groups.forEach((list) => {
+    const sorted = [...list].sort((a, b) => a.time - b.time);
+    sorted.forEach((row) => {
+      if (!row.flagRaw || row.pending) return;
+      const followup = sorted.find((candidate) => resolvesFlag(row, candidate));
+      if (followup) resolutions.set(row.id, followup);
+    });
+  });
+
+  if (!resolutions.size) return rows;
+  return rows.map((row) => {
+    const followup = resolutions.get(row.id);
+    if (!followup) return row;
+    return {
+      ...row,
+      flagStatus: 'resolved',
+      resolvedByDate: followup.date,
+      resolvedByValue: followup.valueRaw || (followup.value !== null ? formatValue(followup.value, followup.unit) : undefined),
+      resolvedById: followup.id,
+    };
+  });
+}
+
+function resolvesFlag(flagged: LabPoint, candidate: LabPoint): boolean {
+  if (candidate.time <= flagged.time) return false;
+  if (candidate.pending || candidate.value === null) return false;
+  if (candidate.flagRaw) return false;
+  if (!compatibleSpecimens(flagged, candidate)) return false;
+  if (!looksNormal(candidate)) return false;
+  if (!sameUnit(flagged.unit, candidate.unit)) return true;
+  if (/high|above|elevated/i.test(flagged.flagRaw)) return candidate.value <= (flagged.value ?? candidate.value);
+  if (/low|below|decreased/i.test(flagged.flagRaw)) return candidate.value >= (flagged.value ?? candidate.value);
+  return true;
+}
+
+function markerFamily(marker: string): string {
+  return clean(marker)
+    .toLowerCase()
+    .replace(/\b(whole blood|serum|plasma|blood|urine|random|spot|level|test|tests)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function compatibleSpecimens(a: LabPoint, b: LabPoint): boolean {
+  const left = specimenFamily(a);
+  const right = specimenFamily(b);
+  if (!left || !right) return true;
+  return left === right;
+}
+
+function specimenFamily(row: LabPoint): string {
+  const text = `${row.specimen} ${row.marker}`.toLowerCase();
+  if (/urine/.test(text)) return 'urine';
+  if (/hair/.test(text)) return 'hair';
+  if (/saliva/.test(text)) return 'saliva';
+  if (/blood|serum|plasma/.test(text)) return 'blood';
+  return '';
+}
+
+function looksNormal(row: LabPoint): boolean {
+  if (row.flagRaw || row.pending || row.value === null) return false;
+  const ref = parseReference(row.refRaw);
+  if (!ref) return true;
+  if (ref.low !== null && row.value < ref.low) return false;
+  if (ref.high !== null && row.value > ref.high) return false;
+  return true;
+}
+
+function sameUnit(a: string, b: string): boolean {
+  const left = clean(a).toLowerCase().replace(/μ/g, 'µ');
+  const right = clean(b).toLowerCase().replace(/μ/g, 'µ');
+  return !!left && !!right && left === right;
 }
 
 function normalizeWearable(row: RawWearable): WearablePoint | null {
@@ -1026,6 +1150,9 @@ function buildLabSeries(rows: LabPoint[]): Series[] {
         rawValue: row.value as number,
         valueRaw: row.valueRaw,
         flagRaw: row.flagRaw,
+        flagStatus: row.flagStatus,
+        resolvedByDate: row.resolvedByDate,
+        resolvedByValue: row.resolvedByValue,
         pending: row.pending,
         sourceId: row.sourceId,
         refRaw: row.refRaw,
@@ -1045,8 +1172,8 @@ function buildContextSeries(wearableRows: WearablePoint[], labRows: LabPoint[], 
     const labWeight = labRows.filter((row) => row.profileId === state.profile && row.value !== null && /weight|body mass/i.test(row.marker));
     const wearableWeight = wearableRows.filter((row) => row.profileId === state.profile && /body mass|weight/i.test(row.metric));
     const points = [
-      ...labWeight.map((row) => ({ id: row.id, date: row.date, time: row.time, value: row.value as number, rawValue: row.value as number, valueRaw: row.valueRaw, flagRaw: row.flagRaw, refRaw: row.refRaw })),
-      ...wearableWeight.map((row) => ({ id: row.id, date: row.date, time: row.time, value: row.value, rawValue: row.value, valueRaw: String(row.value), flagRaw: '', note: 'wearable body mass' })),
+      ...labWeight.map((row) => ({ id: row.id, date: row.date, time: row.time, value: row.value as number, rawValue: row.value as number, valueRaw: row.valueRaw, flagRaw: row.flagRaw, flagStatus: row.flagStatus, resolvedByDate: row.resolvedByDate, resolvedByValue: row.resolvedByValue, refRaw: row.refRaw })),
+      ...wearableWeight.map((row) => ({ id: row.id, date: row.date, time: row.time, value: row.value, rawValue: row.value, valueRaw: String(row.value), flagRaw: '', flagStatus: 'none' as const, note: 'wearable body mass' })),
     ].filter((point) => !start || point.time >= start).sort((a, b) => a.time - b.time);
     if (points.length) series.push({ id: 'context-weight', label: 'Weight context (kg)', shortLabel: 'Weight', category: 'Context', unit: 'kg', kind: 'context', color: CONTEXT_COLOR, points, ref: null, derived: false });
   }
@@ -1056,7 +1183,7 @@ function buildContextSeries(wearableRows: WearablePoint[], labRows: LabPoint[], 
       .filter((row) => row.profileId === state.profile && row.metric === metric)
       .filter((row) => !start || row.time >= start)
       .sort((a, b) => a.time - b.time)
-      .map((row) => ({ id: row.id, date: row.date, time: row.time, value: row.value, rawValue: row.value, valueRaw: String(row.value), flagRaw: '', note: `${row.aggregation} wearable metric` }));
+      .map((row) => ({ id: row.id, date: row.date, time: row.time, value: row.value, rawValue: row.value, valueRaw: String(row.value), flagRaw: '', flagStatus: 'none' as const, note: `${row.aggregation} wearable metric` }));
     if (!points.length) return;
     const unit = wearableRows.find((row) => row.profileId === state.profile && row.metric === metric)?.unit || '';
     series.push({ id: `context-${slug(metric)}`, label: `${metric}${unit ? ` (${unit})` : ''}`, shortLabel: metric, category: 'Context', unit, kind: 'context', color: PALETTE[(index + 2) % PALETTE.length], points, ref: null, derived: false });
@@ -1097,7 +1224,20 @@ function meanByDate(points: ChartPoint[]): ChartPoint[] {
   return [...groups.entries()].map(([date, list]) => {
     const avg = list.reduce((sum, point) => sum + point.value, 0) / list.length;
     const first = list[0];
-    return { ...first, id: `${first.id}-mean-${date}`, value: avg, rawValue: avg, valueRaw: `${compactNumber(avg)} mean`, flagRaw: list.find((point) => point.flagRaw)?.flagRaw || '' };
+    const active = list.find((point) => point.flagStatus === 'active');
+    const resolved = list.find((point) => point.flagStatus === 'resolved');
+    const flagPoint = active || resolved;
+    return {
+      ...first,
+      id: `${first.id}-mean-${date}`,
+      value: avg,
+      rawValue: avg,
+      valueRaw: `${compactNumber(avg)} mean`,
+      flagRaw: flagPoint?.flagRaw || '',
+      flagStatus: flagPoint?.flagStatus || 'none',
+      resolvedByDate: flagPoint?.resolvedByDate,
+      resolvedByValue: flagPoint?.resolvedByValue,
+    };
   }).sort((a, b) => a.time - b.time);
 }
 
@@ -1129,7 +1269,8 @@ function effectiveScale(state: UiState, seriesCount: number): ScaleMode {
 }
 
 function focusRows(rows: LabPoint[], focus: RowFocus): LabPoint[] {
-  if (focus === 'flags') return rows.filter((row) => row.flagRaw && !row.pending);
+  if (focus === 'flags') return activeFlagRows(rows);
+  if (focus === 'resolved') return resolvedFlagRows(rows);
   if (focus === 'pending') return rows.filter((row) => row.pending);
   if (focus === 'numeric') return rows.filter((row) => row.value !== null && !row.pending);
   return rows;
@@ -1273,7 +1414,19 @@ function contextSeriesSort(a: Series, b: Series): number {
 }
 
 function flagCount(series: Series): number {
-  return series.points.filter((point) => point.flagRaw).length;
+  return series.points.filter((point) => point.flagStatus === 'active').length;
+}
+
+function resolvedFlagCount(series: Series): number {
+  return series.points.filter((point) => point.flagStatus === 'resolved').length;
+}
+
+function activeFlagRows(rows: LabPoint[]): LabPoint[] {
+  return rows.filter((row) => row.flagStatus === 'active' && !row.pending);
+}
+
+function resolvedFlagRows(rows: LabPoint[]): LabPoint[] {
+  return rows.filter((row) => row.flagStatus === 'resolved' && !row.pending);
 }
 
 function latestTime(series: Series): number {
@@ -1291,9 +1444,10 @@ function movementScore(series: Series): number {
 
 function groupStats(list: Series[]) {
   const flags = list.reduce((sum, item) => sum + flagCount(item), 0);
+  const resolved = list.reduce((sum, item) => sum + resolvedFlagCount(item), 0);
   const points = list.reduce((sum, item) => sum + item.points.length, 0);
   const latest = list.map((item) => item.points.at(-1)?.date || '').sort().at(-1) || '';
-  return { flags, points, latest };
+  return { flags, resolved, points, latest };
 }
 
 function defaultOpenGroups(entries: [string, Series[]][]): string[] {
@@ -1447,7 +1601,7 @@ function persistState(state: UiState) {
 }
 
 function downloadCsv(rows: LabPoint[]) {
-  const cols = ['date', 'category', 'marker', 'valueRaw', 'unit', 'refRaw', 'flagRaw', 'sourceId'];
+  const cols = ['date', 'category', 'marker', 'valueRaw', 'unit', 'refRaw', 'flagRaw', 'flagStatus', 'resolvedByDate', 'resolvedByValue', 'sourceId'];
   const body = [cols.join(',')].concat(rows.map((row) => cols.map((key) => csvEscape(String((row as any)[key] ?? ''))).join(','))).join('\n');
   const blob = new Blob([body], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);

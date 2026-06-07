@@ -258,6 +258,10 @@ body {
 }
 .source-table a { color: var(--accent); font-weight: 800; text-decoration: none; }
 .source-table a:hover { text-decoration: underline; }
+.source-table .resolved-row {
+  color: color-mix(in srgb, var(--ink) 74%, var(--muted));
+  background: color-mix(in srgb, var(--range-band) 16%, transparent);
+}
 .mini-row {
   padding: .65rem .8rem;
   border: 1px solid var(--border);

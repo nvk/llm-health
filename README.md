@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.14** | Resolved-flag UI: later normal follow-up demotes old abnormal rows from active alerts. |
 | **0.0.13** | Family graph: `health family`, hereditary/household tags, family risk notes, service/docs/plugin coverage. |
 | **0.0.12** | Visible operator runtime: draft/list/show/finalize/traces plus fingerprint-first audit records. |
 | **0.0.11** | Capability map, de-id preview/staging, and localhost service smoke surface. |
