@@ -23,6 +23,7 @@ are interfaces, not the product story.
 This scaffold implements the core contracts for:
 
 - event-driven quick reviews after new results;
+- alias-only family history and kinship graph context;
 - smart deep-research job planning;
 - diagnostic-gap and test-candidate cards;
 - least-harm / conservative-care option cards;
@@ -157,7 +158,7 @@ health capabilities --json
 health capabilities --kind privacy
 ```
 
-See `docs/feature-map.md`, `docs/recipes.md`, and `docs/operator-runtime.md` for copy/paste flows, including de-id staging, local service smoke tests, and visible draft/finalize workflows.
+See `docs/feature-map.md`, `docs/recipes.md`, `docs/family-history.md`, and `docs/operator-runtime.md` for copy/paste flows, including family history, de-id staging, local service smoke tests, and visible draft/finalize workflows.
 
 ## health-assessment-v2 included
 

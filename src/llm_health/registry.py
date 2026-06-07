@@ -131,6 +131,21 @@ CAPABILITIES: tuple[Capability, ...] = (
         docs=["docs/onboarding-and-dr-visit.md"],
     ),
     Capability(
+        capability_id="family-history",
+        name="Family history and kinship graph",
+        kind="data",
+        command="health family add/condition/tree/history/risks",
+        summary=(
+            "Track alias-only relationships, family conditions, household context, "
+            "and hereditary-pattern risk notes."
+        ),
+        module="llm_health.family",
+        privacy="alias-only family graph; no legal names or full birth dates",
+        status="scaffold",
+        tests=["tests/test_cli.py::CliTests::test_family_history_tree_and_risk_notes"],
+        docs=["docs/family-history.md", "docs/recipes.md"],
+    ),
+    Capability(
         capability_id="diagnostic-gaps",
         name="Gap and test-candidate layer",
         kind="review",

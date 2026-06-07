@@ -28,6 +28,8 @@ SERVICE_ROUTES: tuple[ServiceRoute, ...] = (
     ServiceRoute("GET", "/sources/audit", "Source-id counts without source paths or filenames."),
     ServiceRoute("GET", "/charts/payload", "Small chart payload scaffold for UI clients."),
     ServiceRoute("GET", "/operator/drafts", "Visible draft artifacts for agent workflows."),
+    ServiceRoute("GET", "/family/tree", "Alias-only family relationships around a profile."),
+    ServiceRoute("GET", "/family/risks", "Generated hereditary/household context notes."),
 )
 
 
@@ -156,6 +158,31 @@ def build_app(store: LocalHealthStore):  # pragma: no cover - exercised when opt
         return {
             "count": len(drafts[:limit]),
             "drafts": [draft.to_dict() for draft in drafts[:limit]],
+        }
+
+    @app.get("/family/tree")
+    def family_tree(profile_id: str) -> dict[str, object]:
+        profile = validate_profile_alias(profile_id)
+        if not store.profile_exists(profile):
+            raise HTTPException(status_code=404, detail="profile alias is not enrolled")
+        relationships = store.family_relationships(profile)
+        return {
+            "profile_id": profile,
+            "count": len(relationships),
+            "relationships": [relationship.to_dict() for relationship in relationships],
+        }
+
+    @app.get("/family/risks")
+    def family_risks(profile_id: str, limit: int = Query(50, ge=1, le=500)) -> dict[str, object]:
+        profile = validate_profile_alias(profile_id)
+        if not store.profile_exists(profile):
+            raise HTTPException(status_code=404, detail="profile alias is not enrolled")
+        notes = store.hereditary_risk_notes(profile)
+        notes.sort(key=lambda item: (item.priority, item.created_at), reverse=True)
+        return {
+            "profile_id": profile,
+            "count": len(notes[:limit]),
+            "notes": [note.to_dict() for note in notes[:limit]],
         }
 
     return app

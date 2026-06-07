@@ -15,7 +15,7 @@ health capabilities --json
 | Class | What it covers | Commands |
 |---|---|---|
 | Core | Setup, agreement, onboarding, runtime checks, public registry | `health doctor`, `health agreement`, `health welcome`, `health capabilities` |
-| Data | Alias profiles, observations, self-reported context, v2 sync | `health enroll`, `health profiles`, `health ingest-note`, `health self-report`, `health sync-v2` |
+| Data | Alias profiles, observations, self-reported context, family history, v2 sync | `health enroll`, `health profiles`, `health ingest-note`, `health self-report`, `health family`, `health sync-v2` |
 | Review | Quick reviews, result lookup, diagnostic gaps, test candidates, least-harm cards | `health review`, `health result`, `health close-gaps`, `health test-battery`, `health least-harm` |
 | Research | Research queues and broad category-agent consults | `health plan-research`, `health specialists`, `health consult` |
 | UI | Static local Assessment board | `health ui` |

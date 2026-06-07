@@ -138,7 +138,111 @@ class CliTests(unittest.TestCase):
             self.assertIn("/health", result.stdout)
             self.assertIn("/profiles", result.stdout)
             self.assertIn("/operator/drafts", result.stdout)
+            self.assertIn("/family/tree", result.stdout)
             self.assertIn("status: smoke-ok", result.stdout)
+
+    def test_family_history_tree_and_risk_notes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for alias, year, role in [
+                ("alex", "2018", "child"),
+                ("parenta", "1983", "adult"),
+                ("parentb", "1983", "adult"),
+            ]:
+                enroll = self.run_cli(
+                    "enroll",
+                    "--alias",
+                    alias,
+                    "--birth-year",
+                    year,
+                    "--role",
+                    role,
+                    "--accept-risk",
+                    store=tmp,
+                )
+                self.assertEqual(enroll.returncode, 0, enroll.stderr)
+
+            father = self.run_cli(
+                "family",
+                "add",
+                "--profile",
+                "alex",
+                "--relative",
+                "parenta",
+                "--relation",
+                "father",
+                "--lineage",
+                "paternal",
+                "--shared-household",
+                "yes",
+                store=tmp,
+            )
+            self.assertEqual(father.returncode, 0, father.stderr)
+            self.assertIn("Added relationship", father.stdout)
+            self.assertIn("FAMILY_HISTORY", father.stdout)
+
+            mother = self.run_cli(
+                "family",
+                "add",
+                "--profile",
+                "alex",
+                "--relative",
+                "parentb",
+                "--relation",
+                "mother",
+                "--lineage",
+                "maternal",
+                "--shared-household",
+                "yes",
+                store=tmp,
+            )
+            self.assertEqual(mother.returncode, 0, mother.stderr)
+
+            condition = self.run_cli(
+                "family",
+                "condition",
+                "--profile",
+                "parenta",
+                "--condition",
+                "Gilbert syndrome",
+                "--status",
+                "believed",
+                "--evidence",
+                "context",
+                store=tmp,
+            )
+            self.assertEqual(condition.returncode, 0, condition.stderr)
+            self.assertIn("Gilbert syndrome", condition.stdout)
+
+            tree = self.run_cli("family", "tree", "--profile", "alex", store=tmp)
+            self.assertEqual(tree.returncode, 0, tree.stderr)
+            self.assertIn("parenta: father", tree.stdout)
+            self.assertIn("parentb: mother", tree.stdout)
+            self.assertIn("shared household", tree.stdout)
+
+            history = self.run_cli("family", "history", "--profile", "parenta", store=tmp)
+            self.assertEqual(history.returncode, 0, history.stderr)
+            self.assertIn("Gilbert syndrome", history.stdout)
+
+            risks = self.run_cli("family", "risks", "--profile", "alex", store=tmp)
+            self.assertEqual(risks.returncode, 0, risks.stderr)
+            self.assertIn("Family risk review", risks.stdout)
+            self.assertIn("Family history: Gilbert syndrome", risks.stdout)
+            self.assertIn("HEREDITARY_RISK", risks.stdout)
+            self.assertIn("FAMILY_PATTERN", risks.stdout)
+            self.assertIn("HOUSEHOLD_CONTEXT", risks.stdout)
+            self.assertIn("stored_hereditary_risk_notes", risks.stdout)
+
+            unsafe = self.run_cli(
+                "family",
+                "condition",
+                "--profile",
+                "parenta",
+                "--condition",
+                "from raw.pdf",
+                store=tmp,
+            )
+            self.assertEqual(unsafe.returncode, 2)
+            self.assertIn("privacy error", unsafe.stderr)
 
     def test_operator_runtime_draft_finalize_trace(self):
         with tempfile.TemporaryDirectory() as tmp:

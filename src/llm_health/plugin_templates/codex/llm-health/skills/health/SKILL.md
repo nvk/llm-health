@@ -77,6 +77,10 @@ health ui --no-open
 health enroll --alias sol --birth-year 2018 --role child
 health enroll --alias lele --birth-year 2026 --birth-month 1 --role child
 health profiles
+health family add --profile sol --relative rod --relation father --lineage paternal --shared-household yes
+health family condition --profile rod --condition "Gilbert syndrome" --status believed --evidence context
+health family tree --profile sol
+health family risks --profile sol
 health ingest-note --profile rod --marker ALT --value 76 --unit U/L --category liver --flag high
 health sync-v2 --wiki-root <health-assessments-topic-root> --profile rod
 health result --profile rod --marker mercury
@@ -175,6 +179,15 @@ The interview should keep digging in all directions until the timeline and major
 Use `health enroll` before storing context for a new family profile alias. Store alias-only profile
 metadata with birth year and optional birth month only; never store a full birth date or legal name.
 `rod` and `cara` are built-in aliases, and additional aliases are listed with `health profiles`. Encourage family enrollment only as alias-only references, using birth year/month precision and relationship labels; do not store legal names or full birth dates.
+
+### Family history and kinship graph
+
+Use `health family` when hereditary or household context could change how results are interpreted.
+Relationships are alias-only edges (`sol` -> `rod` as `father`, etc.). Family history events are
+context clues tagged `FAMILY_HISTORY`; generated risk notes may add `HEREDITARY_RISK`,
+`HOUSEHOLD_CONTEXT`, or `FAMILY_PATTERN`. Keep hereditary and shared-household explanations separate.
+Do not infer that a profile has a disease merely because a relative has it. Use family context to
+ask better questions, prioritize gaps, route specialists, and annotate chart interpretation.
 
 ### Specialist/category-agent consults
 

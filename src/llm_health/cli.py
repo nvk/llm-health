@@ -33,6 +33,14 @@ from llm_health.deid import (
     stage_deidentified_text,
 )
 from llm_health.engine import DiagnosticGapEngine, LeastHarmEngine, ReviewEngine
+from llm_health.family import (
+    FamilyHistoryEvent,
+    FamilyRelationship,
+    create_family_risk_notes,
+    render_family_history,
+    render_family_risks,
+    render_family_tree,
+)
 from llm_health.onboarding import (
     SOURCE_LINKS,
     SOURCE_NOTES,
@@ -271,6 +279,67 @@ def build_parser() -> argparse.ArgumentParser:
     _profile_arg(context)
     context.add_argument("--subject")
     context.add_argument("--limit", type=int, default=10)
+
+    family = sub.add_parser("family", help="Manage alias-only family history and kinship graph")
+    family_sub = family.add_subparsers(dest="family_command", required=True)
+
+    family_add = family_sub.add_parser("add", help="Add a relationship edge")
+    _store_arg(family_add)
+    _risk_arg(family_add)
+    _profile_arg(family_add)
+    family_add.add_argument("--relative", required=True, help="Alias of relative profile")
+    family_add.add_argument(
+        "--relation", required=True, help="father, mother, sibling, child, etc."
+    )
+    family_add.add_argument("--degree", type=int, help="Optional biological degree 1-5")
+    family_add.add_argument(
+        "--lineage", default="unknown", help="paternal, maternal, both, household, unknown"
+    )
+    family_add.add_argument(
+        "--shared-household",
+        choices=["yes", "no", "unknown"],
+        default="unknown",
+        help="Whether profiles share/sharing household exposure context",
+    )
+    family_add.add_argument("--note", help="Alias-safe relationship note")
+
+    family_condition = family_sub.add_parser("condition", help="Record family health history")
+    _store_arg(family_condition)
+    _risk_arg(family_condition)
+    _profile_arg(family_condition)
+    family_condition.add_argument("--condition", required=True)
+    family_condition.add_argument(
+        "--status",
+        default="reported",
+        choices=["reported", "observed", "believed", "confirmed", "absent", "unknown"],
+    )
+    family_condition.add_argument("--evidence", default="self_report")
+    family_condition.add_argument("--onset-age", type=int)
+    family_condition.add_argument("--note", help="Alias-safe family-history note")
+    family_condition.add_argument(
+        "--related",
+        action="append",
+        default=[],
+        help="Optional related profile alias; repeatable",
+    )
+
+    family_tree = family_sub.add_parser("tree", help="Show family tree around a profile")
+    _store_arg(family_tree)
+    _risk_arg(family_tree)
+    _profile_arg(family_tree)
+
+    family_history = family_sub.add_parser("history", help="Show family history events")
+    _store_arg(family_history)
+    _risk_arg(family_history)
+    family_history.add_argument("--profile", help="Optional profile alias filter")
+
+    family_risks = family_sub.add_parser("risks", help="Generate family-pattern risk notes")
+    _store_arg(family_risks)
+    _risk_arg(family_risks)
+    _profile_arg(family_risks)
+    family_risks.add_argument(
+        "--no-persist", action="store_true", help="Print only; do not store generated risk notes"
+    )
 
     result = sub.add_parser(
         "result", help="Show latest matching observation(s) with source reference range"
@@ -820,8 +889,95 @@ def cmd_context(args: argparse.Namespace) -> int:
         print(f"{note.profile_id} · {note.subject} · {note.status}")
         print(f"  Date: {note.observed_on}")
         print(f"  Tag: {', '.join(note.tags)}")
-        print(f"  Note: {note.note}")
+        if note.note:
+            print(f"  Note: {note.note}")
     return 0
+
+
+def _shared_household_value(raw: str) -> bool | None:
+    if raw == "yes":
+        return True
+    if raw == "no":
+        return False
+    return None
+
+
+def cmd_family(args: argparse.Namespace) -> int:
+    store = _private_store_from_args(args)
+    store.init()
+
+    if args.family_command == "add":
+        profile = _profile_for_store(args, store)
+        relative = validate_profile_alias(args.relative)
+        if not store.profile_exists(relative):
+            raise PrivacyError(
+                f"relative alias {relative!r} is not enrolled; run `health enroll` first"
+            )
+        relationship = FamilyRelationship(
+            profile_id=profile,
+            relative_id=relative,
+            relation=args.relation,
+            degree=args.degree,
+            lineage=args.lineage,
+            shared_household=_shared_household_value(args.shared_household),
+            note=args.note,
+        )
+        store.append_family_relationship(relationship)
+        print(
+            f"Added relationship: {relationship.profile_id} -> {relationship.relative_id} "
+            f"({relationship.relation})"
+        )
+        print(
+            "  Degree: " + (
+                str(relationship.degree)
+                if relationship.degree is not None
+                else "[unknown/non-biological]"
+            )
+        )
+        print(f"  Tags: {', '.join(relationship.tags)}")
+        return 0
+
+    if args.family_command == "condition":
+        profile = _profile_for_store(args, store)
+        event = FamilyHistoryEvent(
+            profile_id=profile,
+            condition=args.condition,
+            status=args.status,
+            evidence=args.evidence,
+            onset_age=args.onset_age,
+            note=args.note,
+            related_profile_ids=args.related,
+        )
+        store.append_family_history_event(event)
+        print(f"Recorded family history: {event.profile_id} · {event.condition} · {event.status}")
+        print(f"  Evidence: {event.evidence}")
+        print(f"  Tags: {', '.join(event.tags)}")
+        return 0
+
+    if args.family_command == "tree":
+        profile = _profile_for_store(args, store)
+        print(render_family_tree(profile, store.family_relationships(profile)))
+        return 0
+
+    if args.family_command == "history":
+        profile = validate_profile_alias(args.profile) if args.profile else None
+        if profile and not store.profile_exists(profile):
+            raise PrivacyError(f"profile alias {profile!r} is not enrolled")
+        print(render_family_history(store.family_history_events(profile)))
+        return 0
+
+    if args.family_command == "risks":
+        profile = _profile_for_store(args, store)
+        notes = create_family_risk_notes(store, profile)
+        if not args.no_persist:
+            for note in notes:
+                store.append_hereditary_risk_note(note)
+        print(render_family_risks(notes, profile))
+        if notes and not args.no_persist:
+            print(f"\nstored_hereditary_risk_notes: {len(notes)}")
+        return 0
+
+    raise ValueError(f"unknown family command: {args.family_command}")
 
 
 def _format_observation_value(observation: Observation) -> str:
@@ -1234,6 +1390,7 @@ def main(argv: list[str] | None = None) -> int:
         "review": cmd_review,
         "self-report": cmd_self_report,
         "context": cmd_context,
+        "family": cmd_family,
         "result": cmd_result,
         "close-gaps": cmd_close_gaps,
         "test-battery": cmd_test_battery,

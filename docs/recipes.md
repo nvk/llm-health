@@ -90,6 +90,21 @@ health plan-research --profile alex
 ```
 
 
+
+## Add family history and hereditary context
+
+```sh
+health enroll --alias sol --birth-year 2018 --role child --accept-risk
+health family add --profile sol --relative rod --relation father --lineage paternal --shared-household yes
+health family add --profile sol --relative cara --relation mother --lineage maternal --shared-household yes
+health family condition --profile rod --condition "Gilbert syndrome" --status believed --evidence context
+health family tree --profile sol
+health family risks --profile sol
+```
+
+Family risk notes are tagged `FAMILY_HISTORY`, `HEREDITARY_RISK`, `HOUSEHOLD_CONTEXT`, or
+`FAMILY_PATTERN` where appropriate. They are review prompts, not diagnoses.
+
 ## Use the visible operator runtime
 
 Draft first; finalize only after reviewing the visible plan:

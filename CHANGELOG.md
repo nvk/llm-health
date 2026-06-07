@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.13 - 2026-06-07
+
+- Added `health family` alias-only kinship graph and family-history commands.
+- Added family-history, hereditary-risk, household-context, and family-pattern visible tags for kinship-aware notes.
+- Added family service routes, registry metadata, docs, recipes, agent-plugin guidance, and release tests.
+
 ## 0.0.12 - 2026-06-07
 
 - Added `health operator` visible runtime with draft/list/show/finalize/traces subcommands.

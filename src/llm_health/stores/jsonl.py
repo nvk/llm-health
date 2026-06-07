@@ -32,6 +32,9 @@ COLLECTIONS = {
     "profiles": "profiles.jsonl",
     "operator_drafts": "operator_drafts.jsonl",
     "audit_traces": "audit_traces.jsonl",
+    "family_relationships": "family_relationships.jsonl",
+    "family_history_events": "family_history_events.jsonl",
+    "hereditary_risk_notes": "hereditary_risk_notes.jsonl",
 }
 
 
@@ -280,3 +283,47 @@ class LocalHealthStore:
             else self.read_profile("audit_traces", profile_id)
         )
         return [AuditTrace.from_dict(row) for row in rows]
+
+    def append_family_relationship(self, relationship) -> None:
+        self.upsert_unique(
+            "family_relationships", relationship.to_dict(), "relationship_id"
+        )
+
+    def family_relationships(self, profile_id: str | None = None) -> list:
+        from llm_health.family import FamilyRelationship
+
+        rows = self.read("family_relationships")
+        if profile_id is not None:
+            profile = validate_profile_alias(profile_id)
+            rows = [
+                row
+                for row in rows
+                if row.get("profile_id") == profile or row.get("relative_id") == profile
+            ]
+        return [FamilyRelationship.from_dict(row) for row in rows]
+
+    def append_family_history_event(self, event) -> None:
+        self.upsert_unique("family_history_events", event.to_dict(), "event_id")
+
+    def family_history_events(self, profile_id: str | None = None) -> list:
+        from llm_health.family import FamilyHistoryEvent
+
+        rows = (
+            self.read("family_history_events")
+            if profile_id is None
+            else self.read_profile("family_history_events", profile_id)
+        )
+        return [FamilyHistoryEvent.from_dict(row) for row in rows]
+
+    def append_hereditary_risk_note(self, note) -> None:
+        self.upsert_unique("hereditary_risk_notes", note.to_dict(), "note_id")
+
+    def hereditary_risk_notes(self, profile_id: str | None = None) -> list:
+        from llm_health.family import HereditaryRiskNote
+
+        rows = (
+            self.read("hereditary_risk_notes")
+            if profile_id is None
+            else self.read_profile("hereditary_risk_notes", profile_id)
+        )
+        return [HereditaryRiskNote.from_dict(row) for row in rows]
