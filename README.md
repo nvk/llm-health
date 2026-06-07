@@ -1,10 +1,22 @@
 # llm-health
 
-`llm-health` is a package-first, local-first health intelligence scaffold for coding agents,
-chat UIs, and reproducible Python workflows.
+```text
+ _ _                 _                _ _   _
+| | |_ __ ___       | |__   ___  __ _| | |_| |__
+| | | '_ ` _ \ _____| '_ \ / _ \/ _` | | __| '_ \
+| | | | | | | |_____| | | |  __/ (_| | | |_| | | |
+|_|_|_| |_| |_|     |_| |_|\___|\__,_|_|\__|_| |_|
 
-It is designed to sit above deterministic health data tools: ingest events, summarize new results,
-open diagnostic gaps, queue deeper research, compare advice lenses, and preserve provenance.
+        Your private, own-risk health concierge.
+```
+
+`llm-health` is a package-first, local-first health intelligence system for private labs,
+wearables, records, self-reported context, timelines, reviews, diagnostic gaps, and research
+queues.
+
+It sits above deterministic health data tools: ingest events, summarize new results, open diagnostic
+gaps, queue deeper research, compare advice lenses, and preserve provenance. Agent and chat surfaces
+are interfaces, not the product story.
 
 ## Initial scope
 
