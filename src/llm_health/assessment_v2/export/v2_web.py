@@ -18,6 +18,7 @@ from llm_health.assessment_v2.export.old_web import (
     _read_csv_dicts,
 )
 from llm_health.config import resolve_store_path
+from llm_health.core.models import EnrolledProfile
 
 
 @dataclass(frozen=True)
@@ -158,17 +159,26 @@ def _enrolled_profiles_from_hub() -> list[dict[str, Any]]:
             row = json.loads(line)
         except json.JSONDecodeError:
             continue
-        profile_id = row.get("profile_id")
-        if profile_id:
-            profiles.append(
-                {
-                    "profile_id": profile_id,
-                    "birth_year": row.get("birth_year"),
-                    "birth_month": row.get("birth_month"),
-                    "role": row.get("role"),
-                    "tags": row.get("tags") or ["CONTEXT"],
-                }
-            )
+        profile_data = {
+            key: row.get(key)
+            for key in ("profile_id", "birth_year", "birth_month", "role", "tags", "created_at")
+            if row.get(key) is not None
+        }
+        if "tags" in profile_data and not isinstance(profile_data["tags"], list):
+            continue
+        try:
+            profile = EnrolledProfile.from_dict(profile_data)
+        except (AttributeError, TypeError, ValueError):
+            continue
+        profiles.append(
+            {
+                "profile_id": profile.profile_id,
+                "birth_year": profile.birth_year,
+                "birth_month": profile.birth_month,
+                "role": profile.role,
+                "tags": profile.tags,
+            }
+        )
     return profiles
 
 

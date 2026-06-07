@@ -118,3 +118,39 @@ def test_export_v2_web_includes_zero_data_enrolled_profiles(tmp_path, monkeypatc
     assert payload["profile_context"]["lele"] == {}
     lele = next(profile for profile in payload["profiles"] if profile["profile_id"] == "lele")
     assert lele["birth_month"] == 1
+
+
+def test_export_v2_web_skips_unsafe_or_invalid_hub_profiles(tmp_path, monkeypatch) -> None:
+    wiki = tmp_path / "wiki"
+    output_dir = tmp_path / "site"
+    hub = tmp_path / "hub"
+    hub.mkdir()
+    (hub / "profiles.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps({"profile_id": "sol", "birth_year": 2018, "role": "child"}),
+                json.dumps({"profile_id": "Full Name", "birth_year": 2018}),
+                json.dumps({"profile_id": "father", "birth_year": 1983}),
+                json.dumps({"profile_id": "abe", "role": "from raw.pdf"}),
+                json.dumps({"profile_id": "lele", "tags": "CONTEXT"}),
+                "{bad-json",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("LLM_HEALTH_HUB", str(hub))
+
+    _write_csv(wiki / "output/data/lab-observations-long.csv", OBS_FIELDS)
+    _write_csv(wiki / "output/data/apple-health-daily-summary.csv", DAILY_FIELDS)
+
+    export = export_v2_web(wiki, output_dir)
+    payload = _payload_from_data_js(export.data_path)
+
+    assert payload["export_summary"]["profiles"] == ["rod", "cara", "sol"]
+    profile_ids = {profile["profile_id"] for profile in payload["profiles"]}
+    assert profile_ids == {"rod", "cara", "sol"}
+    data_js = export.data_path.read_text(encoding="utf-8")
+    assert "Full Name" not in data_js
+    assert "father" not in data_js
+    assert "raw.pdf" not in data_js
