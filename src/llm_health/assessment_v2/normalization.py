@@ -158,6 +158,24 @@ UNIT_RULES = [
     ),
     UnitRule(
         marker_patterns=(
+            "neutrophils %",
+            "lymphocytes %",
+            "monocytes %",
+            "eosinophils %",
+            "basophils %",
+        ),
+        target_unit="%",
+        factors={"%": 1.0},
+        rationale="Differential percentages are unitless fractions displayed as percent.",
+    ),
+    UnitRule(
+        marker_patterns=("nucleated rbc",),
+        target_unit="10^3/µL",
+        factors={"10^3/µl": 1.0, "10^9/l": 1.0},
+        rationale="Cell-count convention: 1 x10^3/µL = 1 x10^9/L.",
+    ),
+    UnitRule(
+        marker_patterns=(
             "wbc",
             "leukocyte",
             "leucocyte",
@@ -365,6 +383,7 @@ def canonical_unit(unit: str | None) -> tuple[str, str]:
     text = re.sub("ug", "µg", text, flags=re.IGNORECASE)
     text = re.sub("uiu", "µIU", text, flags=re.IGNORECASE)
     text = re.sub("uui", "µIU", text, flags=re.IGNORECASE)
+    text = re.sub("µui", "µIU", text, flags=re.IGNORECASE)
     text = re.sub("mui", "mIU", text, flags=re.IGNORECASE)
     text = re.sub("ul", "µL", text, flags=re.IGNORECASE)
     compact = re.sub(r"\s+", "", text)
@@ -385,6 +404,7 @@ def canonical_unit(unit: str | None) -> tuple[str, str]:
         "miu/l": "mIU/L",
         "miu/ml": "mIU/mL",
         "µiu/ml": "µIU/mL",
+        "µui/ml": "µIU/mL",
         "10^3/µl": "10^3/µL",
         "10^6/µl": "10^6/µL",
         "10^9/l": "10^9/L",

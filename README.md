@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.17** | Fixes normalization QA edge cases for CBC percent rows, nucleated RBC, and thyroid unit symbols. |
 | **0.0.16** | Broader unit normalization for CBC/thyroid/vitals and cleaner unitless-marker QA. |
 | **0.0.15** | English/canonical display normalization plus QA review for translated labs and unit conversions. |
 | **0.0.14** | Resolved-flag UI: later normal follow-up demotes old abnormal rows from active alerts. |

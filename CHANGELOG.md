@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.17 - 2026-06-07
+
+- Fixed normalization QA edge cases for CBC differential percent rows, nucleated RBC counts, and Spanish/Greek thyroid unit symbols.
+
 ## 0.0.16 - 2026-06-07
 
 - Expanded Assessment unit normalization for common CBC, thyroid, vitals, MCHC, and ceruloplasmin unit aliases.

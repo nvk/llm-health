@@ -34,10 +34,22 @@ def test_common_unit_aliases_are_canonicalized_for_display() -> None:
                 "panel_en": "Thyroid",
                 "analyte_en": "TSH",
                 "numeric_value": "1.7",
-                "unit_raw": "uUI/mL",
+                "unit_raw": "μUI/mL",
             },
             "µIU/mL",
             "1.7 µIU/mL",
+        ),
+        (
+            {
+                "profile_id": "cara",
+                "observation_date": "2026-01-01",
+                "panel_en": "CBC / Hematology",
+                "analyte_en": "Neutrophils %",
+                "numeric_value": "55",
+                "unit_raw": "%",
+            },
+            "%",
+            "55 %",
         ),
     ]
 
