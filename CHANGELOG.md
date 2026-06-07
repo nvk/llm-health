@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.11 - 2026-06-07
+
+- Added `health capabilities` with human and JSON feature maps for commands, modules, dependencies, privacy contracts, tests, and docs.
+- Added `health deid extract|preview|apply` with a local regex de-identification adapter, redacted-only staging, and synthetic privacy tests.
+- Added `health service --local --smoke` plus an optional localhost-only FastAPI/uvicorn service skeleton for future UI/chat integrations.
+- Added feature-map, recipes, and open medical UX lessons docs, and updated agent templates for the new surfaces.
+
 ## 0.0.10 - 2026-06-07
 
 - Added context-aware overlay groups: Smart overlay, Current domain, Flagged first, Recent movement, Core markers, and Context only.

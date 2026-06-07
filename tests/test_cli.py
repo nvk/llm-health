@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -51,6 +52,91 @@ class CliTests(unittest.TestCase):
         opencode = self.run_cli("plugin-paths", "--kind", "opencode")
         self.assertEqual(opencode.returncode, 0, opencode.stderr)
         self.assertIn("llm-health", opencode.stdout)
+
+    def test_capabilities_registry(self):
+        result = self.run_cli("capabilities")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("llm-health capabilities", result.stdout)
+        self.assertIn("deid", result.stdout)
+        self.assertIn("local-service", result.stdout)
+        self.assertIn("health ui", result.stdout)
+        self.assertIn("external", result.stdout)
+
+        machine = self.run_cli("capabilities", "--json")
+        self.assertEqual(machine.returncode, 0, machine.stderr)
+        payload = json.loads(machine.stdout)
+        ids = {row["capability_id"] for row in payload}
+        self.assertIn("capabilities", ids)
+        self.assertIn("deid", ids)
+        self.assertIn("local-service", ids)
+
+    def test_deid_preview_extract_and_apply(self):
+        synthetic = (
+            "Patient: Jane Doe\n"
+            "Email: jane@example.com\n"
+            "Date: 2026-01-05\n"
+            "Path: /Users/example/private/lab-result.pdf\n"
+            "File: report.csv\n"
+            "Mercury whole blood: <1.0 ug/L\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "input.txt"
+            source.write_text(synthetic)
+
+            preview = self.run_cli(
+                "deid", "preview", str(source), "--accept-risk", store=tmp
+            )
+            self.assertEqual(preview.returncode, 0, preview.stderr)
+            self.assertIn("Mercury whole blood", preview.stdout)
+            self.assertIn("Email: [EMAIL_", preview.stdout)
+            self.assertIn("[PERSON_", preview.stdout)
+            self.assertIn("[EMAIL_", preview.stdout)
+            self.assertIn("[PATH_", preview.stdout)
+            self.assertNotIn("Jane", preview.stdout)
+            self.assertNotIn("example.com", preview.stdout)
+            self.assertNotIn("/Users", preview.stdout)
+            self.assertNotIn(".pdf", preview.stdout)
+            self.assertNotIn(".csv", preview.stdout)
+
+            extract = self.run_cli(
+                "deid", "extract", str(source), "--accept-risk", "--json", store=tmp
+            )
+            self.assertEqual(extract.returncode, 0, extract.stderr)
+            payload = json.loads(extract.stdout)
+            kinds = {entity["kind"] for entity in payload["entities"]}
+            self.assertIn("PERSON", kinds)
+            self.assertIn("EMAIL", kinds)
+            self.assertIn("PATH", kinds)
+            self.assertNotIn("Jane", extract.stdout)
+            self.assertNotIn("example.com", extract.stdout)
+
+            staged = self.run_cli(
+                "deid",
+                "apply",
+                str(source),
+                "--staging-only",
+                "--accept-risk",
+                store=tmp,
+            )
+            self.assertEqual(staged.returncode, 0, staged.stderr)
+            self.assertIn("staged: deid-staging/deid_", staged.stdout)
+            staged_files = list((Path(tmp) / "deid-staging").glob("deid_*.txt"))
+            self.assertEqual(len(staged_files), 1)
+            staged_text = staged_files[0].read_text()
+            self.assertIn("Mercury whole blood", staged_text)
+            self.assertNotIn("Jane", staged_text)
+            self.assertNotIn("example.com", staged_text)
+            self.assertNotIn("/Users", staged_text)
+
+    def test_service_smoke_routes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result = self.run_cli("service", "--local", "--smoke", "--accept-risk", store=tmp)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("llm-health local service", result.stdout)
+            self.assertIn("local_only: true", result.stdout)
+            self.assertIn("/health", result.stdout)
+            self.assertIn("/profiles", result.stdout)
+            self.assertIn("status: smoke-ok", result.stdout)
 
     def test_first_run_welcome_and_data_prompts(self):
         result = self.run_cli()

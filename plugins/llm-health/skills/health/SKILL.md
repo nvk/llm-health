@@ -65,6 +65,8 @@ health doctor
 health welcome
 health agreement show
 health agreement accept --own-risk
+health capabilities
+health capabilities --json
 health data-wishlist
 health dr-visit --profile rod --cadence monthly --sources
 health init --store .llm-health --accept-risk
@@ -90,6 +92,9 @@ health consult --profile rod --specialist internal_medicine --topic "baseline sy
 health consult --profile rod --specialist toxins_exposures --topic mercury
 health specialist-notes --profile rod
 health plan-research --profile rod
+health deid preview <text-file> --accept-risk
+health deid apply <text-file> --staging-only --accept-risk
+health service --local --smoke --accept-risk
 health med-review --profile rod --active antibiotic --indication unknown
 health protocol-review --profile rod "flu shot"
 ```
@@ -103,6 +108,15 @@ workflow expressed in natural language or through explicit `@health` invocation.
 
 ## Workflows
 
+### Capabilities, de-id, and local service
+
+Use `health capabilities` when you need the current command/module/privacy map instead of guessing.
+Use `health deid preview` before staging raw text into the HUB, and `health deid apply
+--staging-only` only after confirming the redacted preview is safe. The de-id adapter stores redacted
+text and entity hashes only; it must not write raw paths, source filenames, legal names, emails, or
+full birth dates. Use `health service --local --smoke` to validate the future local API contract
+without starting a server. If starting the service, keep the default localhost bind unless the user
+explicitly accepts non-local exposure.
 
 ### Local static UI
 

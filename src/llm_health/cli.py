@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import webbrowser
 from importlib import resources
@@ -25,6 +26,12 @@ from llm_health.config import (
 )
 from llm_health.core.models import ContextNote, EnrolledProfile, Observation, stable_id
 from llm_health.core.privacy import PrivacyError, validate_profile_alias
+from llm_health.deid import (
+    deidentify_text,
+    load_text_input,
+    render_extract,
+    stage_deidentified_text,
+)
 from llm_health.engine import DiagnosticGapEngine, LeastHarmEngine, ReviewEngine
 from llm_health.onboarding import (
     SOURCE_LINKS,
@@ -33,7 +40,9 @@ from llm_health.onboarding import (
     render_dr_visit,
     render_welcome,
 )
+from llm_health.registry import dumps_capabilities, render_capabilities
 from llm_health.research import ResearchWorkflowSpec
+from llm_health.service import LOCAL_HOSTS, render_service_routes, run_service
 from llm_health.specialists import (
     create_specialist_notes,
     list_specialists,
@@ -322,6 +331,59 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["codex", "claude", "opencode", "agents", "all"],
         default="all",
     )
+
+    capabilities = sub.add_parser("capabilities", help="Show llm-health feature map metadata")
+    capabilities.add_argument(
+        "--kind",
+        choices=["all", "core", "data", "review", "research", "ui", "agent", "privacy", "service"],
+        default="all",
+        help="Filter the registry by capability kind",
+    )
+    capabilities.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+
+    deid = sub.add_parser("deid", help="Preview or stage de-identified text")
+    deid_sub = deid.add_subparsers(dest="deid_command", required=True)
+    for action, help_text in [
+        ("extract", "Extract safe de-id entity metadata"),
+        ("preview", "Print redacted text without storing it"),
+        ("apply", "Stage redacted text under the private HUB"),
+    ]:
+        deid_cmd = deid_sub.add_parser(action, help=help_text)
+        _store_arg(deid_cmd)
+        _risk_arg(deid_cmd)
+        deid_cmd.add_argument("input", help="Text or path to a local text file")
+        deid_cmd.add_argument(
+            "--method",
+            choices=["replace", "mask", "hash"],
+            default="replace",
+            help="Redaction style for replacements",
+        )
+        deid_cmd.add_argument("--json", action="store_true", help="Print JSON output")
+        if action == "apply":
+            deid_cmd.add_argument(
+                "--staging-only",
+                action="store_true",
+                required=True,
+                help="Required: write only redacted staging files, never raw input",
+            )
+
+    service = sub.add_parser("service", help="Start or smoke-test the local-only service")
+    _store_arg(service)
+    _risk_arg(service)
+    service.add_argument(
+        "--local",
+        action="store_true",
+        default=True,
+        help="Use a localhost bind; this is the default and recommended mode",
+    )
+    service.add_argument("--host", default="127.0.0.1", help="Bind host; defaults to localhost")
+    service.add_argument("--port", type=int, default=8765, help="Bind port")
+    service.add_argument(
+        "--allow-nonlocal",
+        action="store_true",
+        help="Explicitly allow a non-local bind host; not recommended",
+    )
+    service.add_argument("--smoke", action="store_true", help="Print routes without serving")
 
     specialists = sub.add_parser(
         "specialists", help="List registered specialist/category agents"
@@ -855,6 +917,78 @@ def cmd_plugin_paths(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_capabilities(args: argparse.Namespace) -> int:
+    kind = None if args.kind == "all" else args.kind
+    if args.json:
+        print(dumps_capabilities(kind))
+        return 0
+    print(render_capabilities(kind))
+    return 0
+
+
+def cmd_deid(args: argparse.Namespace) -> int:
+    store = _private_store_from_args(args)
+    text = load_text_input(args.input)
+    result = deidentify_text(text, method=args.method)
+
+    if args.deid_command == "extract":
+        payload = {
+            "backend": result.backend,
+            "entity_count": result.entity_count,
+            "entities": [entity.to_dict() for entity in result.entities],
+        }
+        output = (
+            json.dumps(payload, indent=2, sort_keys=True)
+            if args.json
+            else render_extract(result)
+        )
+        print(output)
+        return 0
+
+    if args.deid_command == "preview":
+        print(json.dumps(result.to_dict(), indent=2, sort_keys=True) if args.json else result.text)
+        return 0
+
+    if args.deid_command == "apply":
+        store.init()
+        text_path, meta_path, staged = stage_deidentified_text(text, store.root, method=args.method)
+        print(f"staged: {text_path.relative_to(store.root)}")
+        print(f"metadata: {meta_path.relative_to(store.root)}")
+        print(f"backend: {staged.backend}")
+        print(f"entities: {staged.entity_count}")
+        return 0
+
+    raise ValueError(f"unknown deid command: {args.deid_command}")
+
+
+def cmd_service(args: argparse.Namespace) -> int:
+    if args.host not in LOCAL_HOSTS and not args.allow_nonlocal:
+        print(
+            "refusing non-local service bind without --allow-nonlocal; "
+            "use --host 127.0.0.1 for local-only mode",
+            file=sys.stderr,
+        )
+        return 4
+
+    store = _private_store_from_args(args)
+    store.init()
+
+    if args.smoke:
+        print(render_service_routes())
+        print(f"host: {args.host}")
+        print(f"port: {args.port}")
+        print("status: smoke-ok")
+        return 0
+
+    try:
+        print(f"starting llm-health local service on http://{args.host}:{args.port}")
+        run_service(store, host=args.host, port=args.port)
+        return 0
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        return 4
+
+
 def cmd_specialists(args: argparse.Namespace) -> int:
     specs = list_specialists()
     if args.short:
@@ -967,6 +1101,9 @@ def main(argv: list[str] | None = None) -> int:
         "test-battery": cmd_test_battery,
         "plan-research": cmd_plan_research,
         "plugin-paths": cmd_plugin_paths,
+        "capabilities": cmd_capabilities,
+        "deid": cmd_deid,
+        "service": cmd_service,
         "specialists": cmd_specialists,
         "consult": cmd_consult,
         "specialist-notes": cmd_specialist_notes,

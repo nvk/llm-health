@@ -147,6 +147,19 @@ health result --profile rod --marker mercury
 health review --profile rod
 ```
 
+## Capability map and recipes
+
+For a live map of commands, modules, dependencies, privacy contracts, and test coverage:
+
+```sh
+health capabilities
+health capabilities --json
+health capabilities --kind privacy
+```
+
+See `docs/feature-map.md` and `docs/recipes.md` for copy/paste flows, including de-id staging and
+local service smoke tests.
+
 ## health-assessment-v2 included
 
 The former `health-assessment-v2` code is repackaged under `llm_health.assessment_v2` and exposed as `health-v2`.

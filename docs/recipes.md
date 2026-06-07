@@ -1,0 +1,99 @@
+# llm-health recipes
+
+Copy/paste flows for common local-first work. All health-facing commands are own-risk, local, and
+alias-only.
+
+## First install / first HUB
+
+```sh
+health agreement show
+health config hub-path ~/health --init --accept-risk
+health doctor
+health capabilities
+```
+
+## Enroll aliases and gather context
+
+```sh
+health enroll --alias alex --birth-year 1983 --role adult --accept-risk
+health profiles
+health data-wishlist
+health dr-visit --profile alex --cadence onboarding
+health dr-visit --profile alex --cadence monthly --sources
+```
+
+## Add one de-identified result and review it
+
+```sh
+health ingest-note --profile alex --marker ALT --value 42 --unit U/L --category liver --flag normal
+health result --profile alex --marker ALT
+health review --profile alex
+health close-gaps --profile alex
+```
+
+## De-identify text before staging
+
+Preview first:
+
+```sh
+health deid preview ./synthetic-note.txt --accept-risk
+```
+
+Extract entity metadata without raw values:
+
+```sh
+health deid extract ./synthetic-note.txt --accept-risk --json
+```
+
+Stage redacted text only:
+
+```sh
+health deid apply ./synthetic-note.txt --staging-only --accept-risk
+```
+
+Output paths are relative to the private HUB, for example `deid-staging/deid_<hash>.txt`. Raw source
+paths and raw file names are not written into the staged metadata.
+
+## Export and open the static Assessment board
+
+```sh
+health config wiki-root <deidentified-health-assessments-wiki-root>
+health ui
+```
+
+Use `--no-open` for automation:
+
+```sh
+health ui --no-open --output ~/health/v2-web
+```
+
+## Smoke-test the future local API
+
+```sh
+health service --local --smoke --accept-risk
+```
+
+If the optional service extra is installed, start the localhost API:
+
+```sh
+pip install 'llm-health[service]'
+health service --local --host 127.0.0.1 --port 8765 --accept-risk
+```
+
+## Ask for test candidates and research queues
+
+```sh
+health test-battery --profile alex --scope core --sources
+health test-battery --profile alex --category gaps
+health test-battery --profile alex --scope expanded --queue-research
+health plan-research --profile alex
+```
+
+## Run broad category agents
+
+```sh
+health specialists --short
+health consult --profile alex --specialist auto
+health consult --profile alex --specialist internal_medicine --topic "baseline synthesis"
+health specialist-notes --profile alex
+```
