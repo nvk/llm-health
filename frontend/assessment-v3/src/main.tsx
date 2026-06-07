@@ -65,6 +65,7 @@ type TimelineMode = 'stack' | 'overlay';
 type ScaleMode = 'auto' | 'raw' | 'norm' | 'center' | 'pctmean' | 'pctfirst' | 'z' | 'log';
 type AggMode = 'observed' | 'mean-date';
 type RowFocus = 'all' | 'flags' | 'pending' | 'numeric';
+type OverlayPreset = 'smart' | 'current' | 'flagged' | 'recent' | 'core' | 'context';
 
 type RawObservation = Record<string, string | undefined>;
 type RawWearable = Record<string, string | undefined>;
@@ -175,6 +176,7 @@ type UiState = {
   scale: ScaleMode;
   agg: AggMode;
   smoothing: string;
+  overlayPreset: OverlayPreset;
   rowFocus: RowFocus;
   query: string;
   contextMetrics: string[];
@@ -208,6 +210,15 @@ const SMOOTH_OPTIONS: ComboboxItem[] = [
   { value: 'mean7', label: '7-point mean' },
   { value: 'mean30', label: '30-point mean' },
 ];
+const OVERLAY_OPTIONS: ComboboxItem[] = [
+  { value: 'smart', label: 'Smart overlay' },
+  { value: 'current', label: 'Current domain' },
+  { value: 'flagged', label: 'Flagged first' },
+  { value: 'recent', label: 'Recent movement' },
+  { value: 'core', label: 'Core markers' },
+  { value: 'context', label: 'Context only' },
+];
+const OVERLAY_LIMIT = 12;
 const PALETTE = ['#2f6fb2', '#2f855a', '#b7791f', '#805ad5', '#d94670', '#0891b2', '#b64035', '#64748b', '#14b8a6', '#f97316'];
 const CONTEXT_COLOR = '#a36a00';
 const TAG_LABELS: Record<string, string> = {
@@ -319,8 +330,18 @@ function App() {
                 <SegmentedControl
                   data={[{ value: 'stack', label: 'Stack' }, { value: 'overlay', label: 'Overlay' }]}
                   value={state.mode}
-                  onChange={(value) => update({ mode: value as TimelineMode, section: 'timeline' })}
+                  onChange={(value) => {
+                    const mode = value as TimelineMode;
+                    update({ mode, section: 'timeline', range: mode === 'overlay' && state.range === 'all' ? '18mo' : state.range });
+                  }}
                   fullWidth
+                />
+
+                <Select
+                  label="Overlay group"
+                  data={OVERLAY_OPTIONS}
+                  value={state.overlayPreset}
+                  onChange={(value) => update({ overlayPreset: (value || 'smart') as OverlayPreset, mode: 'overlay', section: 'timeline', range: state.range === 'all' ? '18mo' : state.range })}
                 />
 
                 <Group grow align="flex-end">
@@ -608,9 +629,12 @@ function TimelineBoard({ series, state, setState }: {
 }) {
   const labSeries = series.filter((item) => item.kind === 'lab');
   const contextSeries = series.filter((item) => item.kind === 'context');
-  const scale = effectiveScale(state, series.length);
   const groups = categoryGroups(labSeries);
-  const chartCount = state.mode === 'overlay' ? Math.min(series.length, 16) : series.length;
+  const overlay = selectOverlaySeries(series, state);
+  const scale = effectiveScale(state, state.mode === 'overlay' ? overlay.series.length : series.length);
+  const groupEntries = [...groups.entries()];
+  const openGroups = defaultOpenGroups(groupEntries);
+  const chartCount = state.mode === 'overlay' ? overlay.series.length : series.length;
 
   return (
     <Stack gap="lg">
@@ -618,10 +642,14 @@ function TimelineBoard({ series, state, setState }: {
         <Group justify="space-between" align="flex-start">
           <div>
             <Title order={3}>{state.category === 'All categories' ? 'All domains' : state.category} · {state.mode}</Title>
-            <Text size="sm" c="dimmed">{chartCount.toLocaleString()} plotted series · scale {scaleLabel(scale)} · pending rows stay out of plots.</Text>
+            <Text size="sm" c="dimmed">
+              {chartCount.toLocaleString()} plotted series · scale {scaleLabel(scale)}
+              {state.mode === 'overlay' ? ` · ${overlay.note}` : ' · priority groups open first'}
+            </Text>
           </div>
           <Group gap="xs">
             <Badge variant="light">{state.agg === 'mean-date' ? 'mean/date' : 'observed'}</Badge>
+            {state.mode === 'overlay' ? <Badge color="blue" variant="light">{overlay.badge}</Badge> : null}
             <Badge color="green" variant="light">reference bands when parseable</Badge>
             {contextSeries.length ? <Badge color="yellow" variant="light">{contextSeries.length} context overlays</Badge> : null}
           </Group>
@@ -629,7 +657,15 @@ function TimelineBoard({ series, state, setState }: {
       </Paper>
 
       {state.mode === 'overlay' ? (
-        <OverlayChart series={series.slice(0, 16)} state={state} />
+        overlay.series.length ? (
+          <OverlayChart series={overlay.series} state={state} title={overlay.title} note={overlay.note} />
+        ) : (
+          <Paper p="xl" radius="xl" className="empty-card">
+            <Title order={3}>No overlay series</Title>
+            <Text c="dimmed">Try Smart overlay, a wider time range, or a selected domain with numeric rows.</Text>
+            <Button mt="md" onClick={() => setState((current) => ({ ...current, overlayPreset: 'smart', range: 'all' }))}>Reset overlay</Button>
+          </Paper>
+        )
       ) : (
         <Stack gap="lg">
           {contextSeries.length ? (
@@ -642,11 +678,20 @@ function TimelineBoard({ series, state, setState }: {
           ) : null}
 
           {state.category === 'All categories' ? (
-            <Accordion multiple defaultValue={[...groups.keys()].slice(0, 4)} variant="separated" radius="xl" className="category-accordion">
-              {[...groups.entries()].map(([category, list]) => (
+            <Accordion multiple defaultValue={openGroups} key={openGroups.join('|')} variant="separated" radius="xl" className="category-accordion">
+              {groupEntries.map(([category, list]) => {
+                const stats = groupStats(list);
+                return (
                 <Accordion.Item key={category} value={category}>
                   <Accordion.Control>
-                    <Group justify="space-between" pr="md"><Text fw={900}>{category}</Text><Badge variant="light">{list.length} charts</Badge></Group>
+                    <Group justify="space-between" pr="md">
+                      <Text fw={900}>{category}</Text>
+                      <Group gap="xs">
+                        {stats.flags ? <Badge color="red" variant="light">{stats.flags} flags</Badge> : null}
+                        <Badge variant="light">{list.length} charts</Badge>
+                        <Badge color="gray" variant="light">latest {stats.latest || '—'}</Badge>
+                      </Group>
+                    </Group>
                   </Accordion.Control>
                   <Accordion.Panel>
                     <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
@@ -654,7 +699,8 @@ function TimelineBoard({ series, state, setState }: {
                     </SimpleGrid>
                   </Accordion.Panel>
                 </Accordion.Item>
-              ))}
+                );
+              })}
             </Accordion>
           ) : (
             <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
@@ -697,7 +743,7 @@ function SeriesCard({ series, state }: { series: Series; state: UiState }) {
   );
 }
 
-function OverlayChart({ series, state }: { series: Series[]; state: UiState }) {
+function OverlayChart({ series, state, title, note }: { series: Series[]; state: UiState; title: string; note: string }) {
   const scale = effectiveScale(state, series.length);
   const prepared = series.map((item) => prepareSeries(item, state, scale));
   const data = overlayData(prepared);
@@ -705,8 +751,8 @@ function OverlayChart({ series, state }: { series: Series[]; state: UiState }) {
     <Card p="md" radius="xl" className="chart-card overlay-card">
       <Group justify="space-between" align="flex-start" mb="sm">
         <div>
-          <Title order={3}>Overlay comparison</Title>
-          <Text size="sm" c="dimmed">Different units are converted by the selected scale. First 16 series shown for readability.</Text>
+          <Title order={3}>{title}</Title>
+          <Text size="sm" c="dimmed">{note}. Different units are converted by the selected scale.</Text>
         </div>
         <Badge variant="light">{scaleLabel(scale)}</Badge>
       </Group>
@@ -1089,6 +1135,179 @@ function focusRows(rows: LabPoint[], focus: RowFocus): LabPoint[] {
   return rows;
 }
 
+type OverlayPick = { series: Series[]; title: string; note: string; badge: string };
+
+function selectOverlaySeries(series: Series[], state: UiState): OverlayPick {
+  const context = series
+    .filter((item) => item.kind === 'context')
+    .sort(contextSeriesSort)
+    .slice(0, 4);
+  const labs = series.filter((item) => item.kind === 'lab');
+  const domainLabs = state.category === 'All categories' ? labs : labs.filter((item) => item.category === state.category);
+  const domainLabel = state.category === 'All categories' ? 'all domains' : state.category;
+  const preset = state.overlayPreset || 'smart';
+
+  if (preset === 'context') {
+    return {
+      series: context,
+      title: 'Context overlay',
+      note: context.length ? 'Weight and wearable context only' : 'No selected context series in this filter',
+      badge: 'context',
+    };
+  }
+
+  if (preset === 'current') {
+    const ranked = rankSeries(domainLabs.length ? domainLabs : labs, state);
+    return {
+      series: capOverlay([...context, ...ranked]),
+      title: `${domainLabel} comparison`,
+      note: `Top ${domainLabel} markers with selected context first`,
+      badge: 'current domain',
+    };
+  }
+
+  if (preset === 'flagged') {
+    const flagged = labs.filter((item) => flagCount(item) > 0).sort((a, b) => flagCount(b) - flagCount(a) || seriesSignalScore(b, state) - seriesSignalScore(a, state));
+    const fallback = rankSeries(domainLabs.length ? domainLabs : labs, state);
+    return {
+      series: capOverlay([...context, ...flagged, ...fallback]),
+      title: 'Flagged-marker overlay',
+      note: 'Source-flagged series first, then nearest useful comparators',
+      badge: 'flags first',
+    };
+  }
+
+  if (preset === 'recent') {
+    const recent = [...(domainLabs.length ? domainLabs : labs)].sort((a, b) => latestTime(b) - latestTime(a) || movementScore(b) - movementScore(a));
+    return {
+      series: capOverlay([...context, ...recent]),
+      title: 'Recent movement overlay',
+      note: 'Newest updated markers first so recent tests line up with context',
+      badge: 'recent',
+    };
+  }
+
+  if (preset === 'core') {
+    const core = coreOverlaySeries(labs, state);
+    return {
+      series: capOverlay([...context, ...core, ...rankSeries(domainLabs, state)]),
+      title: 'Core-marker overlay',
+      note: state.category === 'All categories' ? 'Representative high-signal markers across domains' : `Core ${state.category} markers with context`,
+      badge: 'core markers',
+    };
+  }
+
+  const smartBase = state.category === 'All categories'
+    ? [...labs.filter((item) => flagCount(item) > 0), ...coreOverlaySeries(labs, state), ...rankSeries(labs, state)]
+    : [...domainLabs.filter((item) => flagCount(item) > 0), ...rankSeries(domainLabs, state), ...coreOverlaySeries(labs, state)];
+  return {
+    series: capOverlay([...context, ...smartBase]),
+    title: 'Smart overlay comparison',
+    note: state.category === 'All categories'
+      ? 'Auto-picked context, flagged rows, and representative domain markers'
+      : `Auto-picked context, flagged rows, and high-signal ${state.category} markers`,
+    badge: 'smart',
+  };
+}
+
+function capOverlay(items: Series[]): Series[] {
+  const unique = uniqueSeries(items);
+  const contextCount = unique.filter((item) => item.kind === 'context').length;
+  return unique.slice(0, Math.max(OVERLAY_LIMIT, contextCount));
+}
+
+function uniqueSeries(items: Series[]): Series[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
+function rankSeries(items: Series[], state: UiState): Series[] {
+  return [...items].sort((a, b) => seriesSignalScore(b, state) - seriesSignalScore(a, state) || a.shortLabel.localeCompare(b.shortLabel));
+}
+
+function coreOverlaySeries(labs: Series[], state: UiState): Series[] {
+  if (state.category !== 'All categories') {
+    return rankSeries(labs.filter((item) => item.category === state.category), state).slice(0, OVERLAY_LIMIT);
+  }
+
+  const priorityCategories = ['Heavy metals', 'Liver', 'Lipids', 'Glycemia', 'Kidney / urate', 'CBC / Hematology', 'Vitals'];
+  const picked: Series[] = [];
+  priorityCategories.forEach((category) => {
+    picked.push(...rankSeries(labs.filter((item) => item.category === category), state).slice(0, category === 'Liver' ? 3 : 2));
+  });
+  return uniqueSeries([...picked, ...rankSeries(labs, state)]);
+}
+
+function seriesSignalScore(series: Series, state: UiState): number {
+  const categoryFit = state.category !== 'All categories' && series.category === state.category ? 120 : 0;
+  const flags = flagCount(series) * 90;
+  const priority = Math.max(0, 90 - markerPriority(series));
+  const density = Math.min(series.points.length, 12) * 3;
+  const recent = latestTime(series) / 100000000000;
+  const movement = movementScore(series) * 6;
+  const derivedPenalty = series.derived ? -8 : 0;
+  return categoryFit + flags + priority + density + recent + movement + derivedPenalty;
+}
+
+function markerPriority(series: Series): number {
+  const text = `${series.category} ${series.label} ${series.shortLabel}`.toLowerCase();
+  const patterns = [
+    /mercury/, /lead/, /arsenic/, /cadmium/,
+    /\balt\b/, /\bast\b/, /\bggt\b|gamma/, /total bilirubin/, /direct bilirubin/, /indirect bilirubin/, /alkaline phosphatase/, /albumin/, /ast\/alt|ast alt/,
+    /apob|apo b/, /\bldl\b/, /\bhdl\b/, /triglyceride/, /total cholesterol/, /lipoprotein/,
+    /a1c|hba1c/, /glucose/, /insulin/,
+    /creatinine/, /egfr/, /urea|bun/, /uric/,
+    /hemoglobin/, /platelet/, /\bwbc\b|white blood/, /\brbc\b|red blood/, /neutrophil/, /lymphocyte/,
+    /weight|body mass/, /blood pressure/, /resting heart rate|heart rate/,
+  ];
+  const idx = patterns.findIndex((pattern) => pattern.test(text));
+  return idx === -1 ? 80 : idx;
+}
+
+function contextSeriesSort(a: Series, b: Series): number {
+  return contextRank(a.shortLabel) - contextRank(b.shortLabel) || latestTime(b) - latestTime(a);
+}
+
+function flagCount(series: Series): number {
+  return series.points.filter((point) => point.flagRaw).length;
+}
+
+function latestTime(series: Series): number {
+  return Math.max(...series.points.map((point) => point.time).filter(Number.isFinite), 0);
+}
+
+function movementScore(series: Series): number {
+  const values = series.points.map((point) => point.value).filter(Number.isFinite);
+  if (values.length < 2) return 0;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return mean ? Math.min(Math.abs(max - min) / Math.abs(mean), 5) : 0;
+}
+
+function groupStats(list: Series[]) {
+  const flags = list.reduce((sum, item) => sum + flagCount(item), 0);
+  const points = list.reduce((sum, item) => sum + item.points.length, 0);
+  const latest = list.map((item) => item.points.at(-1)?.date || '').sort().at(-1) || '';
+  return { flags, points, latest };
+}
+
+function defaultOpenGroups(entries: [string, Series[]][]): string[] {
+  return [...entries]
+    .sort(([catA, listA], [catB, listB]) => groupScore(catB, listB) - groupScore(catA, listA) || categoryRank(catA) - categoryRank(catB))
+    .slice(0, 5)
+    .map(([category]) => category);
+}
+
+function groupScore(category: string, list: Series[]): number {
+  const stats = groupStats(list);
+  return stats.flags * 100 + Math.min(stats.points, 250) + Math.max(0, 80 - categoryRank(category) * 5);
+}
+
 function buildProfiles(labRows: LabPoint[], wearableRows: WearablePoint[]): ComboboxItem[] {
   const ids = new Set<string>();
   (DATA.profiles || []).forEach((profile) => profile.profile_id && ids.add(profile.profile_id));
@@ -1184,15 +1403,18 @@ function initialState(profiles: ComboboxItem[]): UiState {
   const params = new URLSearchParams(location.search);
   const category = params.get('category') || 'All categories';
   const context = params.get('context');
+  const mode = (params.get('mode') as TimelineMode) || 'stack';
+  const range = (params.get('range') as TimeRange) || (mode === 'overlay' ? '18mo' : 'all');
   return {
     profile: params.get('profile') || profiles[0]?.value || 'rod',
-    range: (params.get('range') as TimeRange) || 'all',
+    range,
     category,
     section: (params.get('section') as SectionId) || 'review',
-    mode: (params.get('mode') as TimelineMode) || 'stack',
+    mode,
     scale: (params.get('scale') as ScaleMode) || 'auto',
     agg: (params.get('agg') as AggMode) || 'observed',
     smoothing: params.get('smooth') || 'none',
+    overlayPreset: (params.get('overlay') as OverlayPreset) || 'smart',
     rowFocus: (params.get('rows') as RowFocus) || 'all',
     query: params.get('q') || '',
     contextMetrics: context ? context.split(',').filter(Boolean) : ['Weight'],
@@ -1212,6 +1434,7 @@ function persistState(state: UiState) {
   if (state.scale !== 'auto') params.set('scale', state.scale);
   if (state.agg !== 'observed') params.set('agg', state.agg);
   if (state.smoothing !== 'none') params.set('smooth', state.smoothing);
+  if (state.overlayPreset !== 'smart') params.set('overlay', state.overlayPreset);
   if (state.rowFocus !== 'all') params.set('rows', state.rowFocus);
   if (state.query) params.set('q', state.query);
   if (state.contextMetrics.length) params.set('context', state.contextMetrics.join(','));

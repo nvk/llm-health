@@ -64,7 +64,9 @@ def test_packaged_v3_static_ui_uses_framework_board() -> None:
     assert "Context overlays" in text
     assert "Source flag rings" in text
     assert "Exact date labels" in text
-    assert "Overlay comparison" in text
+    assert "Smart overlay comparison" in text
+    assert "Overlay group" in text
+    assert "priority groups open first" in text
     assert "mantine" in text.lower()
     assert "recharts" in text.lower() or "recharts-wrapper" in text
     assert "--paper-grain" in text

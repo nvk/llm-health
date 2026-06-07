@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.10 - 2026-06-07
+
+- Added context-aware overlay groups: Smart overlay, Current domain, Flagged first, Recent movement, Core markers, and Context only.
+- Made overlay defaults less noisy by switching first-time overlay views to 18mo and auto-picking context plus high-signal/flagged/recent markers.
+- Improved stack grouping defaults so the most useful/flagged domains open first and group headers show flags and latest dates.
+
 ## 0.0.9 - 2026-06-07
 
 - Removed the decorative hero swoop from the Assessment board.
