@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -66,7 +67,9 @@ def _quote_literal(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def _safe_source_query(spec: WikiTableSpec, input_literal: str) -> str:
+def _safe_source_query(
+    spec: WikiTableSpec, input_literal: str, columns: set[str] | None = None
+) -> str:
     """Return an import query with privacy-safe normalizations.
 
     The source CSVs are already de-identified, but package-generated artifacts should still avoid
@@ -74,6 +77,30 @@ def _safe_source_query(spec: WikiTableSpec, input_literal: str) -> str:
     """
 
     csv_scan = f"read_csv_auto({input_literal}, all_varchar=true, union_by_name=true)"
+    if spec.table in {"lab_observations", "lab_reports"}:
+        # The canonical CSVs can preserve local audit aliases for wiki-internal use. The package
+        # store/archive should not carry raw-source-looking filenames or provider labels forward.
+        columns = columns or set()
+        exclusions = [name for name in ("source_file_alias", "provider_alias") if name in columns]
+        if exclusions:
+            excluded = ", ".join(exclusions)
+            imported = f"SELECT * EXCLUDE ({excluded}) FROM {csv_scan}"
+        else:
+            imported = f"SELECT * FROM {csv_scan}"
+        replacements = [
+            f"{_scrub_source_sql(name)} AS {name}"
+            for name in ("source_title", "notes")
+            if name in columns and name not in exclusions
+        ]
+        if not replacements:
+            return imported
+        return (
+            "WITH imported AS ("
+            f"{imported}"
+            ") SELECT * REPLACE ("
+            f"{', '.join(replacements)}"
+            ") FROM imported"
+        )
     if spec.table != "wearable_source_aliases":
         return f"SELECT * FROM {csv_scan}"
 
@@ -85,6 +112,22 @@ def _safe_source_query(spec: WikiTableSpec, input_literal: str) -> str:
         "AS source_kind"
         f") FROM {csv_scan}"
     )
+
+
+def _scrub_source_sql(column: str) -> str:
+    # Remove raw-source-looking filenames from package-generated DuckDB/Parquet text fields while
+    # preserving enough source context for grouping and audit notes.
+    pattern = r"[^\s/\\;]+\.(pdf|xml|cda|xlsx?|csv)"
+    return f"regexp_replace({column}, {_quote_literal(pattern)}, '[source-file]', 'gi')"
+
+
+def _csv_columns(path: Path) -> set[str]:
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.reader(handle)
+        try:
+            return {column.strip() for column in next(reader) if column.strip()}
+        except StopIteration:
+            return set()
 
 
 def build_from_wiki(
@@ -102,6 +145,7 @@ def build_from_wiki(
     parquet_dir = ensure_dir(data_dir / "parquet")
     duckdb_path = duckdb_path.expanduser()
     ensure_dir(duckdb_path.parent)
+    duckdb_path.unlink(missing_ok=True)
 
     built: list[BuiltTable] = []
     con = duckdb.connect(str(duckdb_path))
@@ -142,7 +186,7 @@ def build_from_wiki(
             temp_table = _quote_ident(f"__import_{spec.table}")
             con.execute(
                 f"CREATE OR REPLACE TEMP TABLE {temp_table} AS "
-                f"{_safe_source_query(spec, input_literal)}"
+                f"{_safe_source_query(spec, input_literal, _csv_columns(input_csv))}"
             )
             con.execute(f"COPY (SELECT * FROM {temp_table}) TO {output_literal} (FORMAT PARQUET)")
             row_count = con.execute(f"SELECT count(*) FROM {temp_table}").fetchone()[0]

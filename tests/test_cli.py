@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -414,6 +415,43 @@ class CliTests(unittest.TestCase):
             self.assertTrue((output / "data.js").exists())
             self.assertTrue((output / "assets").is_dir())
             self.assertIn("Assessment board", (output / "index.html").read_text())
+
+    def test_archive_create_list_verify_and_privacy_skip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            init = self.run_cli("init", "--accept-risk", store=tmp)
+            self.assertEqual(init.returncode, 0, init.stderr)
+            root = Path(tmp)
+            (root / "v2-web").mkdir()
+            (root / "v2-web" / "index.html").write_text("<html>safe local dashboard</html>")
+            (root / "v2-data").mkdir()
+            (root / "v2-data" / "health.duckdb").write_bytes(b"binary old raw-source.pdf marker")
+
+            created = self.run_cli("archive", "create", "--json", store=tmp)
+            self.assertEqual(created.returncode, 0, created.stderr)
+            payload = json.loads(created.stdout)
+            archive_path = Path(payload["archive_path"])
+            self.assertTrue(archive_path.exists())
+            self.assertGreater(payload["member_count"], 0)
+            self.assertEqual(payload["skipped_count"], 1)
+            self.assertIn("v2-data/health.duckdb", payload["skipped"][0]["path"])
+
+            with tarfile.open(archive_path, "r:gz") as tar:
+                names = set(tar.getnames())
+            self.assertIn("archive-manifest.json", names)
+            self.assertIn("v2-web/index.html", names)
+            self.assertNotIn("v2-data/health.duckdb", names)
+
+            listed = self.run_cli("archive", "list", store=tmp)
+            self.assertEqual(listed.returncode, 0, listed.stderr)
+            self.assertIn(archive_path.name, listed.stdout)
+
+            verified = self.run_cli("archive", "verify", str(archive_path), store=tmp)
+            self.assertEqual(verified.returncode, 0, verified.stderr)
+            self.assertIn("status: ok", verified.stdout)
+
+            strict = self.run_cli("archive", "create", "--strict", store=tmp)
+            self.assertEqual(strict.returncode, 2)
+            self.assertIn("privacy error", strict.stderr)
 
     def test_dr_visit_cadence_questions(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.20** | Adds privacy-scanned `health archive` snapshots and scrubs v2 DuckDB/Parquet source-file/provider fields. |
 | **0.0.19** | Dashboard export privacy: source filenames/provider aliases are scrubbed from `data.js`. |
 | **0.0.18** | Superseded pending rows: later numeric follow-up removes old pending placeholders from active pending counts. |
 | **0.0.17** | Fixes normalization QA edge cases for CBC percent rows, nucleated RBC, and thyroid unit symbols. |
@@ -115,6 +116,20 @@ health doctor
 Then commands such as `health review --profile rod` and `health sync-v2 ...` use that HUB by default unless `--store` is supplied.
 
 
+
+## HUB archives
+
+Create a compressed, privacy-scanned snapshot of the private HUB:
+
+```sh
+health archive create
+health archive list
+health archive verify <archive.tar.gz>
+```
+
+Archives go to `<resolved HUB>/archives/` and include a manifest with checksums plus any privacy
+skips. This is a de-identified HUB snapshot, not a raw PDF/XML/Apple-export backup. See
+`docs/archives.md`.
 
 ## One-command local UI
 

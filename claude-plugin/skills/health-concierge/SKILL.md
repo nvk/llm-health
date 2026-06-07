@@ -74,6 +74,9 @@ health config hub-path ~/health --init --accept-risk
 health config wiki-root <health-assessments-topic-root>
 health ui
 health ui --no-open
+health archive create
+health archive list
+health archive verify <archive.tar.gz>
 health enroll --alias sol --birth-year 2018 --role child
 health enroll --alias lele --birth-year 2026 --birth-month 1 --role child
 health profiles
@@ -117,9 +120,12 @@ the behavior contract.
 
 ## Workflows
 
-### Capabilities, de-id, and local service
+### Capabilities, archives, de-id, and local service
 
 Use `health capabilities` when you need the current command/module/privacy map instead of guessing.
+Use `health archive create` to create a compressed, privacy-scanned HUB snapshot for future
+reference; it is a de-identified HUB archive, not a raw-source backup. Use `--strict` when
+privacy skips should fail the run.
 Use `health deid preview` before staging raw text into the HUB, and `health deid apply
 --staging-only` only after confirming the redacted preview is safe. The de-id adapter stores redacted
 text and entity hashes only; it must not write raw paths, source filenames, legal names, emails, or

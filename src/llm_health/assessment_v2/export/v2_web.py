@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import shutil
 from dataclasses import dataclass
 from datetime import date
@@ -158,7 +159,24 @@ def _scrub_private_source_fields(rows: list[dict[str, Any]]) -> list[dict[str, A
     """
 
     blocked = {"source_file_alias", "provider_alias"}
-    return [{key: value for key, value in row.items() if key not in blocked} for row in rows]
+    scrubbed: list[dict[str, Any]] = []
+    for row in rows:
+        safe_row: dict[str, Any] = {}
+        for key, value in row.items():
+            if key in blocked:
+                continue
+            safe_row[key] = _scrub_raw_source_text(value)
+        scrubbed.append(safe_row)
+    return scrubbed
+
+
+_RAW_SOURCE_TOKEN_RE = re.compile(r"\b[^\s/\\;]+\.(?:pdf|xml|cda|xlsx?|csv)\b", re.IGNORECASE)
+
+
+def _scrub_raw_source_text(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    return _RAW_SOURCE_TOKEN_RE.sub("[source-file]", value)
 
 
 def _profile_payloads(

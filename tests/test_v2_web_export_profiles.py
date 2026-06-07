@@ -124,7 +124,7 @@ def test_export_v2_web_includes_zero_data_enrolled_profiles(tmp_path, monkeypatc
             {
                 "source_id": "rod_user_weight",
                 "profile_id": "rod",
-                "source_title": "User weight",
+                "source_title": "User weight raw-workbook.xlsx",
                 "source_file_alias": "raw-report-file.pdf",
                 "provider_alias": "private-provider",
             }
@@ -150,6 +150,8 @@ def test_export_v2_web_includes_zero_data_enrolled_profiles(tmp_path, monkeypatc
     assert "source_file_alias" not in data_js
     assert "provider_alias" not in data_js
     assert ".pdf" not in data_js.lower()
+    assert ".xlsx" not in data_js.lower()
+    assert "raw-workbook" not in data_js
 
 
 def test_export_v2_web_skips_unsafe_or_invalid_hub_profiles(tmp_path, monkeypatch) -> None:

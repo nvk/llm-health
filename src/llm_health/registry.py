@@ -234,6 +234,20 @@ CAPABILITIES: tuple[Capability, ...] = (
         docs=["docs/feature-map.md", "docs/recipes.md"],
     ),
     Capability(
+        capability_id="archive",
+        name="Compressed HUB archives",
+        kind="privacy",
+        command="health archive create/list/verify",
+        summary="Create privacy-scanned compressed snapshots of the resolved local HUB.",
+        module="llm_health.archive",
+        privacy="allowlisted HUB files only; raw-source-looking files are skipped or strict-failed",
+        tests=[
+            "tests/test_archive.py",
+            "tests/test_cli.py::CliTests::test_archive_create_list_verify_and_privacy_skip",
+        ],
+        docs=["docs/archives.md", "docs/recipes.md"],
+    ),
+    Capability(
         capability_id="deid",
         name="De-identification adapter",
         kind="privacy",

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.20 - 2026-06-07
+
+- Added `health archive create/list/verify` for compressed, privacy-scanned HUB snapshots under `<HUB>/archives/`.
+- Added archive manifests with member checksums, skipped-file notes, and strict privacy-fail mode.
+- Scrubbed raw source filename/provider fields and raw-source-looking filename text from v2 DuckDB/Parquet and dashboard exports.
+
 ## 0.0.19 - 2026-06-07
 
 - Scrubbed raw source filename/provider-alias fields from Assessment dashboard `data.js` exports while keeping de-identified source IDs and source-note links.

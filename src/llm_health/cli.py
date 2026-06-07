@@ -15,6 +15,7 @@ from llm_health.agreement import (
     require_agreement,
     write_agreement_acceptance,
 )
+from llm_health.archive import create_archive, list_archives, verify_archive
 from llm_health.assessment_v2.bridge import import_latest_for_profile
 from llm_health.assessment_v2.export.v2_web import export_v2_web
 from llm_health.config import (
@@ -199,6 +200,45 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override static UI output directory; default is <resolved HUB>/v2-web",
     )
     ui.add_argument("--no-open", action="store_true", help="Export only; do not open browser")
+
+    archive = sub.add_parser("archive", help="Create/list/verify compressed HUB archives")
+    archive_sub = archive.add_subparsers(dest="archive_command", required=True)
+    archive_create = archive_sub.add_parser(
+        "create", help="Create a privacy-scanned compressed archive under <HUB>/archives"
+    )
+    _store_arg(archive_create)
+    _risk_arg(archive_create)
+    archive_create.add_argument(
+        "--output-dir", help="Override archive destination; default is <resolved HUB>/archives"
+    )
+    archive_create.add_argument(
+        "--no-ui", action="store_true", help="Exclude generated v2-web static dashboard files"
+    )
+    archive_create.add_argument(
+        "--no-v2-data", action="store_true", help="Exclude generated v2-data DuckDB/Parquet files"
+    )
+    archive_create.add_argument(
+        "--no-deid-staging", action="store_true", help="Exclude de-identified staging text"
+    )
+    archive_create.add_argument(
+        "--strict",
+        action="store_true",
+        help="Fail instead of skipping files that fail privacy scan",
+    )
+    archive_create.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+
+    archive_list = archive_sub.add_parser("list", help="List local HUB archive files")
+    _store_arg(archive_list)
+    _risk_arg(archive_list)
+    archive_list.add_argument(
+        "--output-dir", help="Override archive directory; default is <resolved HUB>/archives"
+    )
+
+    archive_verify = archive_sub.add_parser("verify", help="Verify archive member checksums")
+    _store_arg(archive_verify)
+    _risk_arg(archive_verify)
+    archive_verify.add_argument("path", help="Archive .tar.gz path to verify")
+    archive_verify.add_argument("--json", action="store_true", help="Print machine-readable JSON")
 
     agreement = sub.add_parser("agreement", help="Show or accept the own-risk agreement")
     _store_arg(agreement)
@@ -752,6 +792,74 @@ def cmd_ui(args: argparse.Namespace) -> int:
         webbrowser.open(index_path.resolve().as_uri())
         print("browser: opened")
     return 0
+
+
+def cmd_archive(args: argparse.Namespace) -> int:
+    store = _private_store_from_args(args)
+    store.init()
+
+    if args.archive_command == "create":
+        result = create_archive(
+            store.root,
+            output_dir=Path(args.output_dir).expanduser() if args.output_dir else None,
+            include_ui=not args.no_ui,
+            include_v2_data=not args.no_v2_data,
+            include_deid_staging=not args.no_deid_staging,
+            strict=args.strict,
+        )
+        if args.json:
+            print(json.dumps(result.to_dict(), indent=2, sort_keys=True))
+            return 0
+        print(f"archive: {result.archive_path}")
+        print(f"archive_id: {result.archive_id}")
+        print(f"members: {result.member_count}")
+        print(f"skipped: {result.skipped_count}")
+        print(f"size: {result.size_bytes:,} bytes")
+        if result.skipped:
+            print("privacy_skips:")
+            for item in result.skipped[:8]:
+                print(f"- {item.path}: {item.reason}")
+            if len(result.skipped) > 8:
+                print(f"- ... {len(result.skipped) - 8} more")
+            print(
+                "note: skipped files are not archived; rebuild/regenerate sanitized data if needed."
+            )
+        return 0
+
+    if args.archive_command == "list":
+        archives = list_archives(
+            store.root, output_dir=Path(args.output_dir).expanduser() if args.output_dir else None
+        )
+        if not archives:
+            print("No llm-health archives found.")
+            return 0
+        for path in archives:
+            print(f"{path.name}	{path.stat().st_size} bytes")
+        return 0
+
+    if args.archive_command == "verify":
+        manifest, failures = verify_archive(Path(args.path))
+        if args.json:
+            print(
+                json.dumps(
+                    {"manifest": manifest, "failures": failures, "ok": not failures},
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0 if not failures else 4
+        print(f"archive_id: {manifest.get('archive_id', '[unknown]')}")
+        print(f"members: {manifest.get('member_count', '[unknown]')}")
+        print(f"skipped: {manifest.get('skipped_count', '[unknown]')}")
+        if failures:
+            print("status: failed")
+            for failure in failures:
+                print(f"- {failure}")
+            return 4
+        print("status: ok")
+        return 0
+
+    raise ValueError(f"unknown archive command: {args.archive_command}")
 
 
 def cmd_ingest_note(args: argparse.Namespace) -> int:
@@ -1384,6 +1492,7 @@ def main(argv: list[str] | None = None) -> int:
         "dr-visit": cmd_dr_visit,
         "config": cmd_config,
         "ui": cmd_ui,
+        "archive": cmd_archive,
         "agreement": cmd_agreement,
         "ingest-note": cmd_ingest_note,
         "sync-v2": cmd_sync_v2,
