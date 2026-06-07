@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.19** | Dashboard export privacy: source filenames/provider aliases are scrubbed from `data.js`. |
 | **0.0.18** | Superseded pending rows: later numeric follow-up removes old pending placeholders from active pending counts. |
 | **0.0.17** | Fixes normalization QA edge cases for CBC percent rows, nucleated RBC, and thyroid unit symbols. |
 | **0.0.16** | Broader unit normalization for CBC/thyroid/vitals and cleaner unitless-marker QA. |

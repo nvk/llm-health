@@ -54,6 +54,19 @@ DAILY_FIELDS = [
     "duration_seconds",
     "count",
 ]
+REPORT_FIELDS = [
+    "source_id",
+    "profile_id",
+    "family_role",
+    "provider_alias",
+    "source_title",
+    "collection_date",
+    "report_date",
+    "language",
+    "status",
+    "source_file_alias",
+    "notes",
+]
 
 
 def _write_csv(path: Path, fields: list[str], rows: list[dict[str, str]] | None = None) -> None:
@@ -99,6 +112,21 @@ def test_export_v2_web_includes_zero_data_enrolled_profiles(tmp_path, monkeypatc
                 "numeric_value": "92.7",
                 "unit_raw": "kg",
                 "source_id": "rod_user_weight",
+                "source_file_alias": "raw-source-file.pdf",
+                "provider_alias": "private-provider",
+            }
+        ],
+    )
+    _write_csv(
+        wiki / "output/data/lab-reports.csv",
+        REPORT_FIELDS,
+        [
+            {
+                "source_id": "rod_user_weight",
+                "profile_id": "rod",
+                "source_title": "User weight",
+                "source_file_alias": "raw-report-file.pdf",
+                "provider_alias": "private-provider",
             }
         ],
     )
@@ -118,6 +146,10 @@ def test_export_v2_web_includes_zero_data_enrolled_profiles(tmp_path, monkeypatc
     assert payload["profile_context"]["lele"] == {}
     lele = next(profile for profile in payload["profiles"] if profile["profile_id"] == "lele")
     assert lele["birth_month"] == 1
+    data_js = export.data_path.read_text(encoding="utf-8")
+    assert "source_file_alias" not in data_js
+    assert "provider_alias" not in data_js
+    assert ".pdf" not in data_js.lower()
 
 
 def test_export_v2_web_skips_unsafe_or_invalid_hub_profiles(tmp_path, monkeypatch) -> None:

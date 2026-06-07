@@ -49,9 +49,11 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
     observations, normalization_issues = normalize_observation_rows(
         _safe_profile_rows(_read_csv_dicts(observations_csv))
     )
+    observations = _scrub_private_source_fields(observations)
     reports = _merge_source_note_paths(
         _safe_profile_rows(_read_optional_csv_dicts(reports_csv)), wiki_root, output_dir
     )
+    reports = _scrub_private_source_fields(reports)
     wearable_daily = _safe_profile_rows(_read_optional_csv_dicts(wearable_daily_csv))
     profile_context = _profile_context(observations)
     profiles = _profile_payloads(observations, wearable_daily, profile_context)
@@ -146,6 +148,17 @@ def _safe_profile_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
             continue
         safe_rows.append(row)
     return safe_rows
+
+
+def _scrub_private_source_fields(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop raw-source filename/provider fields before writing dashboard data.js.
+
+    The UI needs stable de-identified ``source_id`` and optional source-note links,
+    not raw filenames or provider labels from source CSVs.
+    """
+
+    blocked = {"source_file_alias", "provider_alias"}
+    return [{key: value for key, value in row.items() if key not in blocked} for row in rows]
 
 
 def _profile_payloads(

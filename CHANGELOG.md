@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.19 - 2026-06-07
+
+- Scrubbed raw source filename/provider-alias fields from Assessment dashboard `data.js` exports while keeping de-identified source IDs and source-note links.
+- Added regression coverage so raw source filenames do not enter exported UI payloads.
+
 ## 0.0.18 - 2026-06-07
 
 - Added superseded-pending semantics in the Assessment UI so old pending source rows stop counting as active once a later numeric result exists.
