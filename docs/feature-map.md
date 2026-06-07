@@ -19,7 +19,7 @@ health capabilities --json
 | Review | Quick reviews, result lookup, diagnostic gaps, test candidates, least-harm cards | `health review`, `health result`, `health close-gaps`, `health test-battery`, `health least-harm` |
 | Research | Research queues and broad category-agent consults | `health plan-research`, `health specialists`, `health consult` |
 | UI | Static local Assessment board | `health ui` |
-| Agent | Packaged Claude/Codex/OpenCode/portable templates | `health plugin-paths` |
+| Agent | Packaged templates and visible draft/finalize runtime | `health plugin-paths`, `health operator` |
 | Privacy | De-identification adapter and privacy guards | `health deid extract`, `health deid preview`, `health deid apply` |
 | Service | Local API skeleton for future GUI/chat clients | `health service --local` |
 
@@ -42,6 +42,8 @@ Two capabilities are intentionally marked as scaffolds:
    command shape.
 2. **Local service** — route contract and optional FastAPI/uvicorn server. The smoke command works
    without optional service dependencies, so packaging and agents can validate the surface cheaply.
+3. **Visible operator runtime** — draft/finalize lifecycle plus fingerprint-first traces for chat or
+   agent workflows that need a visible plan before writes.
 
 Run this anytime after install:
 

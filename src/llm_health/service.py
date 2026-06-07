@@ -27,6 +27,7 @@ SERVICE_ROUTES: tuple[ServiceRoute, ...] = (
     ServiceRoute("GET", "/reviews/latest", "Alias-scoped latest quick-review cards."),
     ServiceRoute("GET", "/sources/audit", "Source-id counts without source paths or filenames."),
     ServiceRoute("GET", "/charts/payload", "Small chart payload scaffold for UI clients."),
+    ServiceRoute("GET", "/operator/drafts", "Visible draft artifacts for agent workflows."),
 )
 
 
@@ -141,6 +142,20 @@ def build_app(store: LocalHealthStore):  # pragma: no cover - exercised when opt
             "profile_id": profile,
             "count": len(rows[:limit]),
             "points": [_observation_to_payload(row) for row in rows[:limit]],
+        }
+
+    @app.get("/operator/drafts")
+    def operator_drafts(
+        profile_id: str | None = None,
+        status: str | None = None,
+        limit: int = Query(50, ge=1, le=500),
+    ) -> dict[str, object]:
+        profile = validate_profile_alias(profile_id) if profile_id else None
+        drafts = store.operator_drafts(profile, status=status)
+        drafts.sort(key=lambda item: item.created_at, reverse=True)
+        return {
+            "count": len(drafts[:limit]),
+            "drafts": [draft.to_dict() for draft in drafts[:limit]],
         }
 
     return app

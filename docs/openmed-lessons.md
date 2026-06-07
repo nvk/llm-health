@@ -20,3 +20,5 @@ For this release that translates into three concrete surfaces:
 - `health deid` for pre-HUB redaction/staging before raw dumps are admitted into workflows.
 - `health service --local` for a small, localhost-only API contract that future polished UIs can use
   without reimplementing storage logic.
+- `health operator` for visible plan -> draft -> explicit finalize -> audit-trace workflows, so
+  chat/agent actions do not become opaque writes.

@@ -95,6 +95,9 @@ health plan-research --profile rod
 health deid preview <text-file> --accept-risk
 health deid apply <text-file> --staging-only --accept-risk
 health service --local --smoke --accept-risk
+health operator draft --profile rod --intent "review latest liver trend"
+health operator finalize --draft-id <draft_id> --approve
+health operator traces --profile rod
 health med-review --profile rod --active antibiotic --indication unknown
 health protocol-review --profile rod "flu shot"
 ```
@@ -118,6 +121,14 @@ text and entity hashes only; it must not write raw paths, source filenames, lega
 full birth dates. Use `health service --local --smoke` to validate the future local API contract
 without starting a server. If starting the service, keep the default localhost bind unless the user
 explicitly accepts non-local exposure.
+
+### Visible operator runtime
+
+For agent/chat workflows that may become writes, prefer `health operator draft` before doing durable
+downstream work. The operator runtime records a visible plan, deterministic local read scope, draft
+artifact, required approval step, and fingerprint-first audit trace. Use `health operator finalize
+--approve` only after the user has reviewed the draft. Finalize changes lifecycle status only; wiki
+writes, packets, protocols, self-reports, and research claims still need their own explicit commands.
 
 ### Local static UI
 

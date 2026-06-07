@@ -40,6 +40,12 @@ from llm_health.onboarding import (
     render_dr_visit,
     render_welcome,
 )
+from llm_health.operator_runtime import (
+    build_operator_draft,
+    render_audit_trace,
+    render_operator_draft,
+    trace_for_draft,
+)
 from llm_health.registry import dumps_capabilities, render_capabilities
 from llm_health.research import ResearchWorkflowSpec
 from llm_health.service import LOCAL_HOSTS, render_service_routes, run_service
@@ -384,6 +390,56 @@ def build_parser() -> argparse.ArgumentParser:
         help="Explicitly allow a non-local bind host; not recommended",
     )
     service.add_argument("--smoke", action="store_true", help="Print routes without serving")
+
+    operator = sub.add_parser(
+        "operator", help="Visible plan/draft/finalize runtime for agent workflows"
+    )
+    operator_sub = operator.add_subparsers(dest="operator_command", required=True)
+    operator_draft = operator_sub.add_parser("draft", help="Create a visible draft artifact")
+    _store_arg(operator_draft)
+    _risk_arg(operator_draft)
+    _profile_arg(operator_draft)
+    operator_draft.add_argument("--intent", required=True, help="Alias-safe user intent to plan")
+    operator_draft.add_argument("--json", action="store_true", help="Print draft JSON")
+    operator_draft.add_argument(
+        "--no-store", action="store_true", help="Print only; do not persist draft/trace"
+    )
+
+    operator_list = operator_sub.add_parser("list", help="List operator drafts")
+    _store_arg(operator_list)
+    _risk_arg(operator_list)
+    operator_list.add_argument("--profile", help="Optional profile alias filter")
+    operator_list.add_argument(
+        "--status",
+        choices=["draft", "reviewed", "finalized", "archived"],
+        help="Optional lifecycle status filter",
+    )
+    operator_list.add_argument("--limit", type=int, default=10)
+
+    operator_show = operator_sub.add_parser("show", help="Show one operator draft")
+    _store_arg(operator_show)
+    _risk_arg(operator_show)
+    operator_show.add_argument("--draft-id", required=True)
+    operator_show.add_argument("--json", action="store_true")
+
+    operator_finalize = operator_sub.add_parser(
+        "finalize", help="Finalize a draft after explicit user approval"
+    )
+    _store_arg(operator_finalize)
+    _risk_arg(operator_finalize)
+    operator_finalize.add_argument("--draft-id", required=True)
+    operator_finalize.add_argument(
+        "--approve",
+        action="store_true",
+        required=True,
+        help="Required explicit approval for lifecycle transition",
+    )
+
+    operator_traces = operator_sub.add_parser("traces", help="Show fingerprint-first audit traces")
+    _store_arg(operator_traces)
+    _risk_arg(operator_traces)
+    operator_traces.add_argument("--profile", help="Optional profile alias filter")
+    operator_traces.add_argument("--limit", type=int, default=10)
 
     specialists = sub.add_parser(
         "specialists", help="List registered specialist/category agents"
@@ -989,6 +1045,88 @@ def cmd_service(args: argparse.Namespace) -> int:
         return 4
 
 
+def cmd_operator(args: argparse.Namespace) -> int:
+    store = _private_store_from_args(args)
+    store.init()
+
+    if args.operator_command == "draft":
+        profile = _profile_for_store(args, store)
+        draft = build_operator_draft(store, profile, args.intent)
+        if not args.no_store:
+            store.append_operator_draft(draft)
+            store.append_audit_trace(
+                trace_for_draft(draft, event="draft_created", status="draft")
+            )
+        output = (
+            json.dumps(draft.to_dict(), indent=2, sort_keys=True)
+            if args.json
+            else render_operator_draft(draft)
+        )
+        print(output)
+        return 0
+
+    if args.operator_command == "list":
+        profile = validate_profile_alias(args.profile) if args.profile else None
+        drafts = store.operator_drafts(profile, status=args.status)
+        drafts.sort(key=lambda item: item.created_at, reverse=True)
+        if not drafts:
+            print("No operator drafts found.")
+            return 0
+        for draft in drafts[: args.limit]:
+            print(
+                f"{draft.draft_id} · {draft.profile_id} · {draft.status} · "
+                f"{draft.artifact_type} · {draft.intent}"
+            )
+        return 0
+
+    if args.operator_command == "show":
+        draft = store.operator_draft(args.draft_id)
+        if draft is None:
+            print("No operator draft found.", file=sys.stderr)
+            return 4
+        output = (
+            json.dumps(draft.to_dict(), indent=2, sort_keys=True)
+            if args.json
+            else render_operator_draft(draft)
+        )
+        print(output)
+        return 0
+
+    if args.operator_command == "finalize":
+        draft = store.operator_draft(args.draft_id)
+        if draft is None:
+            print("No operator draft found.", file=sys.stderr)
+            return 4
+        finalized = draft.with_status("finalized")
+        store.append_operator_draft(finalized)
+        store.append_audit_trace(
+            trace_for_draft(finalized, event="draft_finalized", status="finalized")
+        )
+        print(f"finalized: {finalized.draft_id}")
+        print(f"profile: {finalized.profile_id}")
+        print(f"status: {finalized.status}")
+        print(
+            "note: lifecycle finalized only; downstream wiki/packet/protocol writes still need "
+            "their own explicit command."
+        )
+        return 0
+
+    if args.operator_command == "traces":
+        profile = validate_profile_alias(args.profile) if args.profile else None
+        traces = store.audit_traces(profile)
+        traces.sort(key=lambda item: item.created_at, reverse=True)
+        if not traces:
+            print("No audit traces found.")
+            return 0
+        for index, trace in enumerate(traces[: args.limit]):
+            if index:
+                print()
+            print(render_audit_trace(trace))
+        return 0
+
+    raise ValueError(f"unknown operator command: {args.operator_command}")
+
+
 def cmd_specialists(args: argparse.Namespace) -> int:
     specs = list_specialists()
     if args.short:
@@ -1104,6 +1242,7 @@ def main(argv: list[str] | None = None) -> int:
         "capabilities": cmd_capabilities,
         "deid": cmd_deid,
         "service": cmd_service,
+        "operator": cmd_operator,
         "specialists": cmd_specialists,
         "consult": cmd_consult,
         "specialist-notes": cmd_specialist_notes,

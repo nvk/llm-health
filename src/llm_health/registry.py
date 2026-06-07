@@ -246,6 +246,21 @@ CAPABILITIES: tuple[Capability, ...] = (
         tests=["tests/test_cli.py::CliTests::test_service_smoke_routes"],
         docs=["docs/feature-map.md", "docs/recipes.md"],
     ),
+    Capability(
+        capability_id="operator-runtime",
+        name="Visible operator runtime",
+        kind="agent",
+        command="health operator draft/list/show/finalize/traces",
+        summary=(
+            "Turn an alias-safe intent into a visible plan, draft artifact, "
+            "explicit finalize step, and fingerprint-first audit trace."
+        ),
+        module="llm_health.operator_runtime",
+        privacy="stores alias-safe intent, counts, plans, statuses, and fingerprints only",
+        status="scaffold",
+        tests=["tests/test_cli.py::CliTests::test_operator_runtime_draft_finalize_trace"],
+        docs=["docs/operator-runtime.md", "docs/recipes.md"],
+    ),
 )
 
 

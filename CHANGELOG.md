@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.12 - 2026-06-07
+
+- Added `health operator` visible runtime with draft/list/show/finalize/traces subcommands.
+- Added operator draft and fingerprint-first audit trace HUB collections so agent workflows can show a plan before downstream writes.
+- Added operator runtime docs, recipes, registry metadata, service route exposure, agent-template instructions, and lifecycle tests.
+
 ## 0.0.11 - 2026-06-07
 
 - Added `health capabilities` with human and JSON feature maps for commands, modules, dependencies, privacy contracts, tests, and docs.

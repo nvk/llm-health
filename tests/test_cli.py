@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -136,7 +137,88 @@ class CliTests(unittest.TestCase):
             self.assertIn("local_only: true", result.stdout)
             self.assertIn("/health", result.stdout)
             self.assertIn("/profiles", result.stdout)
+            self.assertIn("/operator/drafts", result.stdout)
             self.assertIn("status: smoke-ok", result.stdout)
+
+    def test_operator_runtime_draft_finalize_trace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            enroll = self.run_cli(
+                "enroll",
+                "--alias",
+                "alex",
+                "--birth-year",
+                "1983",
+                "--accept-risk",
+                store=tmp,
+            )
+            self.assertEqual(enroll.returncode, 0, enroll.stderr)
+            ingest = self.run_cli(
+                "ingest-note",
+                "--profile",
+                "alex",
+                "--marker",
+                "ALT",
+                "--value",
+                "80",
+                "--unit",
+                "U/L",
+                "--category",
+                "liver",
+                "--flag",
+                "high",
+                store=tmp,
+            )
+            self.assertEqual(ingest.returncode, 0, ingest.stderr)
+            draft = self.run_cli(
+                "operator",
+                "draft",
+                "--profile",
+                "alex",
+                "--intent",
+                "review latest liver trend",
+                store=tmp,
+            )
+            self.assertEqual(draft.returncode, 0, draft.stderr)
+            self.assertIn("# Draft health review", draft.stdout)
+            self.assertIn("Visible plan", draft.stdout)
+            self.assertIn("approval_required: true", draft.stdout)
+            self.assertIn("Finalize command:", draft.stdout)
+            match = re.search(r"draft_id: (draft_[a-f0-9]+)", draft.stdout)
+            self.assertIsNotNone(match, draft.stdout)
+            draft_id = match.group(1)
+
+            listing = self.run_cli("operator", "list", "--profile", "alex", store=tmp)
+            self.assertEqual(listing.returncode, 0, listing.stderr)
+            self.assertIn(draft_id, listing.stdout)
+            self.assertIn("draft", listing.stdout)
+
+            finalized = self.run_cli(
+                "operator", "finalize", "--draft-id", draft_id, "--approve", store=tmp
+            )
+            self.assertEqual(finalized.returncode, 0, finalized.stderr)
+            self.assertIn("finalized:", finalized.stdout)
+            self.assertIn("status: finalized", finalized.stdout)
+
+            shown = self.run_cli("operator", "show", "--draft-id", draft_id, store=tmp)
+            self.assertEqual(shown.returncode, 0, shown.stderr)
+            self.assertIn("status: finalized", shown.stdout)
+
+            traces = self.run_cli("operator", "traces", "--profile", "alex", store=tmp)
+            self.assertEqual(traces.returncode, 0, traces.stderr)
+            self.assertIn("draft_finalized", traces.stdout)
+            self.assertIn("fingerprints:", traces.stdout)
+
+            unsafe = self.run_cli(
+                "operator",
+                "draft",
+                "--profile",
+                "alex",
+                "--intent",
+                "review /Users/example/raw.pdf",
+                store=tmp,
+            )
+            self.assertEqual(unsafe.returncode, 2)
+            self.assertIn("privacy error", unsafe.stderr)
 
     def test_first_run_welcome_and_data_prompts(self):
         result = self.run_cli()

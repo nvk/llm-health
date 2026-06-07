@@ -30,6 +30,8 @@ COLLECTIONS = {
     "specialist_notes": "specialist_notes.jsonl",
     "context_notes": "context_notes.jsonl",
     "profiles": "profiles.jsonl",
+    "operator_drafts": "operator_drafts.jsonl",
+    "audit_traces": "audit_traces.jsonl",
 }
 
 
@@ -240,3 +242,41 @@ class LocalHealthStore:
             needle = subject.strip().lower()
             rows = [row for row in rows if needle in str(row.get("subject", "")).lower()]
         return [ContextNote.from_dict(row) for row in rows]
+
+    def append_operator_draft(self, draft) -> None:
+        self.upsert_unique("operator_drafts", draft.to_dict(), "draft_id")
+
+    def operator_drafts(
+        self, profile_id: str | None = None, *, status: str | None = None
+    ) -> list:
+        from llm_health.operator_runtime import OperatorDraft
+
+        rows = (
+            self.read("operator_drafts")
+            if profile_id is None
+            else self.read_profile("operator_drafts", profile_id)
+        )
+        if status:
+            rows = [row for row in rows if row.get("status") == status]
+        return [OperatorDraft.from_dict(row) for row in rows]
+
+    def operator_draft(self, draft_id: str):
+        for row in self.read("operator_drafts"):
+            if row.get("draft_id") == draft_id:
+                from llm_health.operator_runtime import OperatorDraft
+
+                return OperatorDraft.from_dict(row)
+        return None
+
+    def append_audit_trace(self, trace) -> None:
+        self.append_unique("audit_traces", trace.to_dict(), "trace_id")
+
+    def audit_traces(self, profile_id: str | None = None) -> list:
+        from llm_health.operator_runtime import AuditTrace
+
+        rows = (
+            self.read("audit_traces")
+            if profile_id is None
+            else self.read_profile("audit_traces", profile_id)
+        )
+        return [AuditTrace.from_dict(row) for row in rows]

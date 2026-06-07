@@ -89,6 +89,22 @@ health test-battery --profile alex --scope expanded --queue-research
 health plan-research --profile alex
 ```
 
+
+## Use the visible operator runtime
+
+Draft first; finalize only after reviewing the visible plan:
+
+```sh
+health operator draft --profile alex --intent "review latest liver trend"
+health operator list --profile alex
+health operator show --draft-id draft_<id>
+health operator finalize --draft-id draft_<id> --approve
+health operator traces --profile alex
+```
+
+Draft/finalize stores lifecycle artifacts and fingerprint traces. It does not silently write wiki
+notes, protocols, packets, or self-reports.
+
 ## Run broad category agents
 
 ```sh

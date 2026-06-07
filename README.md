@@ -157,8 +157,7 @@ health capabilities --json
 health capabilities --kind privacy
 ```
 
-See `docs/feature-map.md` and `docs/recipes.md` for copy/paste flows, including de-id staging and
-local service smoke tests.
+See `docs/feature-map.md`, `docs/recipes.md`, and `docs/operator-runtime.md` for copy/paste flows, including de-id staging, local service smoke tests, and visible draft/finalize workflows.
 
 ## health-assessment-v2 included
 
