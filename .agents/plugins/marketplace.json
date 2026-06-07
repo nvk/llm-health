@@ -1,0 +1,20 @@
+{
+  "name": "llm-health",
+  "interface": {
+    "displayName": "LLM Health"
+  },
+  "plugins": [
+    {
+      "name": "llm-health",
+      "source": {
+        "source": "local",
+        "path": "./plugins/llm-health"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

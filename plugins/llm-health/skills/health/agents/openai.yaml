@@ -1,0 +1,8 @@
+interface:
+  display_name: "LLM Health"
+  short_description: "Local-first health reviews, diagnostic gaps, least-harm protocols, and research queues."
+  brand_color: "#B45309"
+  default_prompt: "Review the latest health results and show quick summary plus diagnostic gaps."
+
+policy:
+  allow_implicit_invocation: true

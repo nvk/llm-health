@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Health Assessment v2 · Review</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">H2</span>
+      <div>
+        <p>local health review</p>
+        <h1>Assessment v2</h1>
+      </div>
+    </div>
+
+    <section class="control-block">
+      <label class="control-label">Profile</label>
+      <div class="segmented" id="profileControls">
+        <button data-profile="rod">Rod</button>
+        <button data-profile="cara">Cara</button>
+      </div>
+    </section>
+
+    <section class="control-block">
+      <label class="control-label">Time window</label>
+      <div class="chips" id="rangeControls">
+        <button data-range="all">All</button>
+        <button data-range="30d">30d</button>
+        <button data-range="90d">90d</button>
+        <button data-range="ytd">YTD</button>
+        <button data-range="18mo">18mo</button>
+      </div>
+    </section>
+
+    <section class="control-block">
+      <label for="categorySelect" class="control-label">Category</label>
+      <select id="categorySelect"></select>
+    </section>
+
+    <section class="control-block">
+      <label class="control-label">Timeline mode</label>
+      <div class="segmented" id="modeControls">
+        <button data-mode="stack">Stack</button>
+        <button data-mode="overlay">Overlay</button>
+      </div>
+    </section>
+
+    <section class="control-block">
+      <label for="scaleSelect" class="control-label">Graph scale</label>
+      <select id="scaleSelect"></select>
+    </section>
+
+    <section class="control-block">
+      <label class="control-label">Point aggregation</label>
+      <div class="segmented" id="aggControls">
+        <button data-agg="observed">Observed</button>
+        <button data-agg="mean-date">Mean/date</button>
+      </div>
+    </section>
+
+    <section class="control-block">
+      <label for="smoothSelect" class="control-label">Trend smoothing</label>
+      <select id="smoothSelect"></select>
+    </section>
+
+    <section class="control-block toggles">
+      <label><input type="checkbox" id="showWeight" checked> Weight context</label>
+      <label><input type="checkbox" id="showFlags" checked> Flag rings</label>
+      <label><input type="checkbox" id="showLabels"> Point labels</label>
+    </section>
+
+    <section class="control-block">
+      <label for="searchBox" class="control-label">Search markers</label>
+      <input id="searchBox" type="search" placeholder="ALT, bilirubin, mercury…">
+    </section>
+
+    <button id="themeToggle" class="secondary full">Dark theme</button>
+  </aside>
+
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">OBSERVED · DERIVED · CONTEXT · QA</p>
+        <h2>Longitudinal review board</h2>
+        <p class="lede">Timeline-first view with category small multiples, context rails, flags, and source provenance.</p>
+      </div>
+      <div class="top-actions">
+        <button id="copyLink" class="secondary">Copy view link</button>
+        <button id="downloadCsv">Export filtered CSV</button>
+      </div>
+    </header>
+
+    <section class="summary-grid" id="summaryGrid"></section>
+
+    <nav class="tabs" id="tabs">
+      <button data-section="review">Review</button>
+      <button data-section="timeline">Timeline</button>
+      <button data-section="sources">Sources</button>
+    </nav>
+
+    <section class="panel review-section" id="reviewSection">
+      <div class="section-head">
+        <div>
+          <h3>Review queue</h3>
+          <p>Generated from filtered observations and explicit context. These are triage prompts, not diagnoses.</p>
+        </div>
+      </div>
+      <div class="review-grid" id="reviewGrid"></div>
+    </section>
+
+    <section class="panel timeline-section" id="timelineSection">
+      <div class="section-head sticky-head">
+        <div>
+          <h3 id="timelineTitle">Timeline</h3>
+          <p id="timelineMeta">—</p>
+        </div>
+        <div class="legend">
+          <span><i class="swatch line"></i>marker</span>
+          <span><i class="swatch flag"></i>source flag</span>
+          <span><i class="swatch weight"></i>weight</span>
+          <span><i class="swatch band"></i>reference</span>
+        </div>
+      </div>
+      <div id="weightRail" class="weight-rail"></div>
+      <div id="charts" class="charts"></div>
+    </section>
+
+    <section class="panel sources-section" id="sourcesSection">
+      <div class="section-head">
+        <div>
+          <h3>Matching observations</h3>
+          <p id="tableMeta">—</p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Panel</th><th>Marker</th><th>Result</th><th>Ref</th><th>Flag</th><th>Source</th></tr></thead>
+          <tbody id="rowsTable"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

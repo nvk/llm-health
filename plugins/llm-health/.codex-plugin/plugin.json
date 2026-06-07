@@ -1,0 +1,45 @@
+{
+  "name": "llm-health",
+  "version": "0.0.1",
+  "description": "Local-first health intelligence for Codex: event-driven result reviews, diagnostic gaps, least-harm protocols, medication collateral-damage review, research queues, and de-identified v2 dashboard integration.",
+  "author": {
+    "name": "nvk"
+  },
+  "homepage": "https://llm-health.net",
+  "repository": "https://github.com/nvk/llm-health",
+  "license": "MIT",
+  "keywords": [
+    "health",
+    "local-first",
+    "medical-records",
+    "labs",
+    "wearables",
+    "diagnostic-gaps",
+    "research",
+    "codex",
+    "privacy",
+    "claude-code",
+    "opencode"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "LLM Health",
+    "shortDescription": "Review health data, close diagnostic gaps, queue research, and keep health artifacts private",
+    "longDescription": "Bundle the llm-health workflow for Codex: ingest de-identified health observations, trigger quick reviews, suggest diagnostic-gap and test-candidate cards, plan deeper capture-aware research, compare least-harm options, review medication collateral damage, integrate de-identified health-assessment-v2 data, and export safe artifacts without raw identifiers.",
+    "developerName": "nvk",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://llm-health.net",
+    "defaultPrompt": [
+      "Review the latest de-identified health results and tell me what changed.",
+      "Find diagnostic gaps and suggest high-leverage test candidates to discuss.",
+      "Queue deep research for flagged markers using mainstream, frontier, edge, contrarian, capture, and risk lenses.",
+      "Review medication collateral damage and lower-collateral alternatives.",
+      "Sync de-identified health-assessment-v2 data into llm-health review cards."
+    ],
+    "brandColor": "#B45309"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "llm-health",
+  "version": "0.0.1",
+  "description": "Local-first health intelligence plugin: de-identified result review, diagnostic gaps, least-harm protocols, medication collateral-damage ledgers, capture-aware research queues, and health-assessment-v2 integration.",
+  "owner": {
+    "name": "nvk"
+  },
+  "plugins": [
+    {
+      "name": "health",
+      "description": "Commands: /health natural-language router, /review, /ingest, /research, /close-gaps, /med-review, /protocol-review, /sync-v2. Alias-only privacy, typed health artifacts, and no raw data in releases.",
+      "version": "0.0.1",
+      "author": {
+        "name": "nvk"
+      },
+      "source": "./claude-plugin",
+      "category": "productivity"
+    }
+  ]
+}

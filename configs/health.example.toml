@@ -1,0 +1,22 @@
+[project]
+name = "local-health-vault"
+default_store = ".llm-health"
+default_profiles = ["rod", "cara"]
+
+[review]
+quick_review = "always"
+deep_research = "smart"
+interest_threshold = 0.60
+
+[evidence]
+default_lenses = ["mainstream", "frontier", "edge", "contrarian", "capture", "risk"]
+government_sources = "context_only"
+
+[privacy]
+allowed_demo_aliases = ["rod", "cara"]
+block_source_paths = true
+block_raw_filenames = true
+
+[agreement]
+required_for_health_facing_commands = true
+acceptance_file = "agreement.json"

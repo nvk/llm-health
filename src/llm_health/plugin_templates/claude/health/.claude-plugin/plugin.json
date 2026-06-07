@@ -1,0 +1,20 @@
+{
+  "name": "health",
+  "description": "Local-first health intelligence: event-driven de-identified result reviews, diagnostic gap closure, least-harm protocols, medication collateral-damage ledgers, capture-aware research queues, and health-assessment-v2 integration.",
+  "version": "0.0.1",
+  "author": {
+    "name": "nvk"
+  },
+  "license": "MIT",
+  "keywords": [
+    "health",
+    "labs",
+    "wearables",
+    "diagnostic-gaps",
+    "research",
+    "privacy",
+    "claude-code"
+  ],
+  "homepage": "https://github.com/nvk/llm-health",
+  "repository": "https://github.com/nvk/llm-health"
+}

@@ -1,0 +1,110 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "llm-health"
+version = "0.0.1"
+description = "Local-first health intelligence for coding agents with event-driven reviews, diagnostic gaps, and research queues"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "nvk" }]
+license = { text = "MIT" }
+dependencies = []
+keywords = ["health", "labs", "wearables", "coding-agents", "diagnostic-gaps", "local-first"]
+
+[project.urls]
+Homepage = "https://llm-health.net"
+Repository = "https://github.com/nvk/llm-health"
+Issues = "https://github.com/nvk/llm-health/issues"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.5",
+  "build>=1.2",
+]
+analytics = [
+  "duckdb>=1.0",
+  "polars>=1.0",
+  "pyarrow>=15",
+]
+v2-core = [
+  "duckdb>=1.0",
+  "polars>=1.0",
+  "pyarrow>=15",
+  "pandas>=2.2",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.2",
+  "typer>=0.12",
+  "rich>=13.7",
+  "pyyaml>=6.0",
+]
+ui = [
+  "panel>=1.5",
+  "hvplot>=0.10",
+  "holoviews>=1.19",
+  "datashader>=0.16",
+]
+research = [
+  "httpx>=0.27",
+  "pymupdf4llm>=0.0.17",
+]
+v2 = [
+  "duckdb>=1.0",
+  "polars>=1.0",
+  "pyarrow>=15",
+  "pandas>=2.2",
+  "panel>=1.5",
+  "hvplot>=0.10",
+  "holoviews>=1.19",
+  "datashader>=0.16",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.2",
+  "pandera>=0.20",
+  "typer>=0.12",
+  "rich>=13.7",
+  "pyyaml>=6.0",
+]
+all = [
+  "duckdb>=1.0",
+  "polars>=1.0",
+  "pyarrow>=15",
+  "pandas>=2.2",
+  "panel>=1.5",
+  "hvplot>=0.10",
+  "holoviews>=1.19",
+  "datashader>=0.16",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.2",
+  "pandera>=0.20",
+  "typer>=0.12",
+  "rich>=13.7",
+  "pyyaml>=6.0",
+  "httpx>=0.27",
+  "pymupdf4llm>=0.0.17",
+]
+
+[project.scripts]
+llm-health = "llm_health.cli:main"
+health = "llm_health.cli:main"
+health-v2 = "llm_health.assessment_v2.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"llm_health.assessment_v2" = ["web_static/*", "README.md"]
+"llm_health.plugin_templates" = ["**/*", "codex/llm-health/.codex-plugin/*", "claude/health/.claude-plugin/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+pythonpath = ["src"]

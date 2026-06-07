@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+.venv/
+venv/
+
+# Local/private health data
+/data/*
+!/data/README.md
+/.llm-health/
+*.duckdb
+*.parquet
+*.sqlite
+*.sqlite3
+*.pdf
+*.xml
+*.cda
+*.csv
+*.xlsx
+*.xls
+!tests/fixtures/**/*.csv
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
