@@ -95,11 +95,41 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
 
 
 def _copy_static_assets(output_dir: Path) -> None:
-    static_dir = resources.files("llm_health.assessment_v2").joinpath("web_static")
-    for asset_name in ("index.html", "styles.css", "app.js"):
-        source = static_dir.joinpath(asset_name)
-        with resources.as_file(source) as source_path:
-            shutil.copyfile(source_path, output_dir / asset_name)
+    """Copy the packaged static cockpit assets.
+
+    The v3 UI is a prebuilt React/Mantine bundle.  The legacy hand-rolled v2 files
+    remain packaged as a fallback/source reference, but exported dashboards should
+    use the polished bundle when it is present.
+    """
+
+    package = "llm_health.assessment_v2"
+    static_root = resources.files(package).joinpath("web_static_v3")
+    if not static_root.is_dir():
+        static_root = resources.files(package).joinpath("web_static")
+
+    for stale in ("index.html",):
+        (output_dir / stale).unlink(missing_ok=True)
+    shutil.rmtree(output_dir / "assets", ignore_errors=True)
+
+    with resources.as_file(static_root) as source_root:
+        source_root_path = Path(source_root)
+        for source in source_root_path.rglob("*"):
+            if not source.is_file():
+                continue
+            relative = source.relative_to(source_root_path)
+            target = output_dir / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+
+    # Compatibility: the standalone upstream v2 contract checks for these
+    # filenames. The v3 index does not reference them, but keeping inert copies
+    # lets old filesystem smoke tests and scripts continue to pass.
+    if static_root.name == "web_static_v3":
+        legacy_root = resources.files(package).joinpath("web_static")
+        for asset_name in ("app.js", "styles.css"):
+            source = legacy_root.joinpath(asset_name)
+            with resources.as_file(source) as source_path:
+                shutil.copyfile(source_path, output_dir / asset_name)
 
 
 def _safe_profile_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:

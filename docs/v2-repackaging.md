@@ -18,6 +18,10 @@ health config wiki-root <health-assessments-topic-root>
 health ui
 ```
 
+The exported static dashboard uses prebuilt React + Mantine + Recharts assets copied from the wheel into
+the local HUB. The older vanilla static files remain in the package only as a compatibility fallback; no
+Node runtime is required for users.
+
 The dependency-light analytics/static-export dependency set lives behind `v2-core`:
 
 ```sh

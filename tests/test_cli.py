@@ -140,7 +140,8 @@ class CliTests(unittest.TestCase):
             self.assertIn("exported UI", ui.stdout)
             self.assertTrue((output / "index.html").exists())
             self.assertTrue((output / "data.js").exists())
-            self.assertIn("data-row-focus", (output / "index.html").read_text())
+            self.assertTrue((output / "assets").is_dir())
+            self.assertIn("Assessment cockpit", (output / "index.html").read_text())
 
     def test_dr_visit_cadence_questions(self):
         with tempfile.TemporaryDirectory() as tmp:

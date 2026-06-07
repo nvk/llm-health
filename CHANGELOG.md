@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.6 - 2026-06-07
+
+- Replaced the exported Assessment static dashboard with a prebuilt React + Mantine + Recharts cockpit.
+- Added polished card, tab, source-table, domain-map, overlay/stacked timeline, context-overlay, light/dark, and bookmarkable-state UX.
+- Kept the Python export flow local-first: `health ui` still writes de-identified `data.js` plus static assets into the configured HUB.
+- Added release tests for the v3 framework bundle and static privacy contract.
+
 ## 0.0.5 - 2026-06-07
 
 - Added `health config wiki-root <path>` so users can save the de-identified health-assessments wiki root once.
