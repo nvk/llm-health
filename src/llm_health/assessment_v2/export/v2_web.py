@@ -19,6 +19,7 @@ from llm_health.assessment_v2.export.old_web import (
 )
 from llm_health.config import resolve_store_path
 from llm_health.core.models import EnrolledProfile
+from llm_health.core.privacy import validate_profile_alias
 
 
 @dataclass(frozen=True)
@@ -44,9 +45,11 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
     reports_csv = wiki_root / "output/data/lab-reports.csv"
     wearable_daily_csv = wiki_root / "output/data/apple-health-daily-summary.csv"
 
-    observations = _read_csv_dicts(observations_csv)
-    reports = _merge_source_note_paths(_read_optional_csv_dicts(reports_csv), wiki_root, output_dir)
-    wearable_daily = _read_optional_csv_dicts(wearable_daily_csv)
+    observations = _safe_profile_rows(_read_csv_dicts(observations_csv))
+    reports = _merge_source_note_paths(
+        _safe_profile_rows(_read_optional_csv_dicts(reports_csv)), wiki_root, output_dir
+    )
+    wearable_daily = _safe_profile_rows(_read_optional_csv_dicts(wearable_daily_csv))
     profile_context = _profile_context(observations)
     profiles = _profile_payloads(observations, wearable_daily, profile_context)
     for profile in profiles:
@@ -99,6 +102,17 @@ def _copy_static_assets(output_dir: Path) -> None:
             shutil.copyfile(source_path, output_dir / asset_name)
 
 
+def _safe_profile_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    safe_rows: list[dict[str, str]] = []
+    for row in rows:
+        try:
+            validate_profile_alias(str(row.get("profile_id", "")))
+        except ValueError:
+            continue
+        safe_rows.append(row)
+    return safe_rows
+
+
 def _profile_payloads(
     observations: list[dict[str, str]],
     wearable_daily: list[dict[str, str]],
@@ -111,8 +125,9 @@ def _profile_payloads(
     def add(profile_id: str | None, **metadata: Any) -> None:
         if not profile_id:
             return
-        alias = str(profile_id).strip().lower()
-        if not alias:
+        try:
+            alias = validate_profile_alias(str(profile_id))
+        except ValueError:
             return
         current = profiles.setdefault(alias, {"profile_id": alias})
         for key, value in metadata.items():

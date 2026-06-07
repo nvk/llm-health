@@ -154,3 +154,55 @@ def test_export_v2_web_skips_unsafe_or_invalid_hub_profiles(tmp_path, monkeypatc
     assert "Full Name" not in data_js
     assert "father" not in data_js
     assert "raw.pdf" not in data_js
+
+
+def test_export_v2_web_filters_invalid_profile_ids_from_canonical_rows(
+    tmp_path, monkeypatch
+) -> None:
+    wiki = tmp_path / "wiki"
+    output_dir = tmp_path / "site"
+    monkeypatch.setenv("LLM_HEALTH_HUB", str(tmp_path / "missing-hub"))
+
+    _write_csv(
+        wiki / "output/data/lab-observations-long.csv",
+        OBS_FIELDS,
+        [
+            {
+                "profile_id": "rod",
+                "family_role": "father",
+                "observation_date": "2026-06-05",
+                "panel_en": "Vitals",
+                "analyte_en": "Weight",
+                "numeric_value": "92.7",
+                "unit_raw": "kg",
+                "source_id": "rod_weight",
+            },
+            {
+                "profile_id": "Full Name",
+                "family_role": "patient",
+                "observation_date": "2026-06-05",
+                "panel_en": "Liver",
+                "analyte_en": "ALT",
+                "numeric_value": "999",
+                "unit_raw": "U/L",
+                "source_id": "unsafe_source",
+            },
+        ],
+    )
+    _write_csv(
+        wiki / "output/data/apple-health-daily-summary.csv",
+        DAILY_FIELDS,
+        [
+            {"profile_id": "rod", "date": "2026-06-05", "metric_en": "Step count"},
+            {"profile_id": "Full Name", "date": "2026-06-05", "metric_en": "Step count"},
+        ],
+    )
+
+    export = export_v2_web(wiki, output_dir)
+    payload = _payload_from_data_js(export.data_path)
+
+    assert export.observation_count == 1
+    assert payload["export_summary"]["wearable_daily"] == 1
+    assert {row["profile_id"] for row in payload["observations"]} == {"rod"}
+    assert {row["profile_id"] for row in payload["wearable_daily"]} == {"rod"}
+    assert "unsafe_source" not in export.data_path.read_text(encoding="utf-8")
