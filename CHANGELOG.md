@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.4 - 2026-06-07
+
+- Trimmed Assessment v2 static UI chrome by removing the non-actionable workflow rail and shortening repeated helper copy.
+- Made top profile/status chips clickable: profile opens review, plotted-capable jumps to timelines, source flags/pending jump to focused source rows.
+- Added compact source row focus controls for all, flags, pending, and numeric rows.
+- Made domain map cards clickable so they jump directly to the matching category timelines.
+
 ## 0.0.3 - 2026-06-07
 
 - Added regression coverage for alias-only profile enrollment, default profile merging, and profile upserts.
