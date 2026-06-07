@@ -68,6 +68,8 @@ def test_packaged_v3_static_ui_uses_framework_board() -> None:
     assert "Overlay group" in text
     assert "Resolved flags are historical" in text
     assert "resolved by later" in text
+    assert "pending resulted" in text
+    assert "old pending row" in text
     assert "Normalization QA" in text
     assert "English display fields" in text
     assert "priority groups open first" in text

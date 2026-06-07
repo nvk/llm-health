@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.18 - 2026-06-07
+
+- Added superseded-pending semantics in the Assessment UI so old pending source rows stop counting as active once a later numeric result exists.
+- Added source badges/CSV fields showing pending rows that were resulted by later follow-up.
+
 ## 0.0.17 - 2026-06-07
 
 - Fixed normalization QA edge cases for CBC differential percent rows, nucleated RBC counts, and Spanish/Greek thyroid unit symbols.

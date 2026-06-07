@@ -67,6 +67,7 @@ type AggMode = 'observed' | 'mean-date';
 type RowFocus = 'all' | 'flags' | 'resolved' | 'pending' | 'numeric' | 'qa';
 type OverlayPreset = 'smart' | 'current' | 'flagged' | 'recent' | 'core' | 'context';
 type FlagStatus = 'none' | 'active' | 'resolved';
+type PendingStatus = 'none' | 'active' | 'superseded';
 
 type RawObservation = Record<string, string | undefined>;
 type RawWearable = Record<string, string | undefined>;
@@ -128,6 +129,10 @@ type LabPoint = {
   normalizationApplied: string;
   normalizationWarnings: string;
   pending: boolean;
+  pendingStatus: PendingStatus;
+  supersededByDate?: string;
+  supersededByValue?: string;
+  supersededById?: string;
   derived: boolean;
   sourceNotePath?: string;
 };
@@ -245,7 +250,12 @@ const TAG_LABELS: Record<string, string> = {
 };
 
 function App() {
-  const labRows = useMemo(() => markResolvedFlags((DATA.observations || []).map(normalizeLab).filter(Boolean) as LabPoint[]), []);
+  const labRows = useMemo(
+    () => markSupersededPending(
+      markResolvedFlags((DATA.observations || []).map(normalizeLab).filter(Boolean) as LabPoint[]),
+    ),
+    [],
+  );
   const wearableRows = useMemo(() => (DATA.wearable_daily || []).map(normalizeWearable).filter(Boolean) as WearablePoint[], []);
   const profileOptions = useMemo(() => buildProfiles(labRows, wearableRows), [labRows, wearableRows]);
   const [state, setState] = useState<UiState>(() => initialState(profileOptions));
@@ -474,7 +484,7 @@ function Header({ state, rows, allRows, series, profileOptions, setState }: {
   const totalLatest = latestDate(allRows);
   const flagged = activeFlagRows(rows).length;
   const resolved = resolvedFlagRows(rows).length;
-  const pending = rows.filter((row) => row.pending).length;
+  const pending = activePendingRows(rows).length;
   const qa = rows.filter((row) => row.normalizationWarnings || row.normalizationApplied).length;
   const qaWarnings = rows.filter((row) => row.normalizationWarnings).length;
   const themeToggle = () => setState((current) => ({ ...current, theme: current.theme === 'dark' ? 'light' : 'dark' }));
@@ -529,7 +539,7 @@ function SummaryGrid({ rows, series, state, setState }: {
   const numeric = rows.filter((row) => row.value !== null).length;
   const flagged = activeFlagRows(rows).length;
   const resolved = resolvedFlagRows(rows).length;
-  const pending = rows.filter((row) => row.pending).length;
+  const pending = activePendingRows(rows).length;
   const derived = rows.filter((row) => row.derived).length;
   const cards = [
     { title: 'Evidence points', value: numeric.toLocaleString(), note: `${series.length} plotted series`, icon: IconChartDots3, section: 'timeline' as SectionId },
@@ -568,7 +578,8 @@ function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
 }) {
   const flagged = activeFlagRows(rows);
   const resolved = resolvedFlagRows(rows);
-  const pending = rows.filter((row) => row.pending);
+  const pending = activePendingRows(rows);
+  const supersededPending = supersededPendingRows(rows);
   const normalizationRows = rows.filter((row) => row.normalizationWarnings || row.normalizationApplied);
   const normalizationWarnings = rows.filter((row) => row.normalizationWarnings);
   const exportNormalizationIssues = NORMALIZATION_ISSUES.length;
@@ -590,7 +601,7 @@ function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
           title="Pending / nonnumeric"
           tag={pending.length ? 'DATA_GAP' : 'OBSERVED'}
           value={`${pending.length} rows`}
-          body={pending.length ? summarizeMarkers(pending) : 'Pending rows are kept in sources and are not plotted.'}
+          body={pending.length ? summarizeMarkers(pending) : supersededPending.length ? `${supersededPending.length} old pending row(s) were matched to later results.` : 'Pending rows are kept in sources and are not plotted.'}
           onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: pending.length ? 'pending' : 'all' }))}
         />
         <ReviewCard
@@ -917,7 +928,15 @@ function SourceMiniRow({ row }: { row: LabPoint }) {
 }
 
 function FlagBadge({ row, compact = false }: { row: LabPoint; compact?: boolean }) {
-  if (row.pending) return <Badge color="orange">pending</Badge>;
+  if (row.pendingStatus === 'superseded') {
+    return (
+      <Stack gap={2}>
+        <Badge color="green" variant="light">{compact ? 'resulted' : 'pending resulted'}</Badge>
+        {!compact && row.supersededByDate ? <Text size="xs" c="dimmed">by {row.supersededByDate}{row.supersededByValue ? ` · ${row.supersededByValue}` : ''}</Text> : null}
+      </Stack>
+    );
+  }
+  if (row.pendingStatus === 'active' || row.pending) return <Badge color="orange">pending</Badge>;
   if (row.flagStatus === 'resolved') {
     const label = compact ? 'resolved' : `resolved ${row.flagRaw.toLowerCase()}`;
     return (
@@ -1022,9 +1041,48 @@ function normalizeLab(row: RawObservation): LabPoint | null {
     normalizationApplied: clean(row.normalization_applied),
     normalizationWarnings: clean(row.normalization_warnings),
     pending,
+    pendingStatus: pending ? 'active' : 'none',
     derived: /^derived|derived|ratio|index/i.test(marker) || /DERIVED/i.test(`${row.notes || ''} ${row.source_id || ''}`),
     sourceNotePath: clean(report?.source_note_path),
   };
+}
+
+function markSupersededPending(rows: LabPoint[]): LabPoint[] {
+  const groups = new Map<string, LabPoint[]>();
+  rows.forEach((row) => {
+    const key = `${row.profileId}::${row.category}::${markerFamily(row.marker)}`;
+    groups.set(key, [...(groups.get(key) || []), row]);
+  });
+
+  const superseded = new Map<string, LabPoint>();
+  groups.forEach((list) => {
+    const sorted = [...list].sort((a, b) => a.time - b.time);
+    sorted.forEach((row) => {
+      if (!row.pending || row.pendingStatus === 'superseded') return;
+      const followup = sorted.find((candidate) => supersedesPending(row, candidate));
+      if (followup) superseded.set(row.id, followup);
+    });
+  });
+
+  if (!superseded.size) return rows;
+  return rows.map((row) => {
+    const followup = superseded.get(row.id);
+    if (!followup) return row;
+    return {
+      ...row,
+      pendingStatus: 'superseded',
+      supersededByDate: followup.date,
+      supersededByValue: followup.valueRaw || (followup.value !== null ? formatValue(followup.value, followup.unit) : undefined),
+      supersededById: followup.id,
+    };
+  });
+}
+
+function supersedesPending(pending: LabPoint, candidate: LabPoint): boolean {
+  if (candidate.time <= pending.time) return false;
+  if (candidate.pending || candidate.value === null) return false;
+  if (!compatibleSpecimens(pending, candidate)) return false;
+  return markerFamily(pending.marker) === markerFamily(candidate.marker);
 }
 
 function markResolvedFlags(rows: LabPoint[]): LabPoint[] {
@@ -1300,7 +1358,7 @@ function effectiveScale(state: UiState, seriesCount: number): ScaleMode {
 function focusRows(rows: LabPoint[], focus: RowFocus): LabPoint[] {
   if (focus === 'flags') return activeFlagRows(rows);
   if (focus === 'resolved') return resolvedFlagRows(rows);
-  if (focus === 'pending') return rows.filter((row) => row.pending);
+  if (focus === 'pending') return activePendingRows(rows);
   if (focus === 'numeric') return rows.filter((row) => row.value !== null && !row.pending);
   if (focus === 'qa') return rows.filter((row) => row.normalizationWarnings || row.normalizationApplied);
   return rows;
@@ -1457,6 +1515,14 @@ function activeFlagRows(rows: LabPoint[]): LabPoint[] {
 
 function resolvedFlagRows(rows: LabPoint[]): LabPoint[] {
   return rows.filter((row) => row.flagStatus === 'resolved' && !row.pending);
+}
+
+function activePendingRows(rows: LabPoint[]): LabPoint[] {
+  return rows.filter((row) => row.pendingStatus === 'active');
+}
+
+function supersededPendingRows(rows: LabPoint[]): LabPoint[] {
+  return rows.filter((row) => row.pendingStatus === 'superseded');
 }
 
 function latestTime(series: Series): number {
@@ -1631,7 +1697,7 @@ function persistState(state: UiState) {
 }
 
 function downloadCsv(rows: LabPoint[]) {
-  const cols = ['date', 'category', 'marker', 'valueRaw', 'unit', 'refRaw', 'flagRaw', 'flagStatus', 'resolvedByDate', 'resolvedByValue', 'normalizationStatus', 'normalizationApplied', 'normalizationWarnings', 'sourceId'];
+  const cols = ['date', 'category', 'marker', 'valueRaw', 'unit', 'refRaw', 'flagRaw', 'flagStatus', 'resolvedByDate', 'resolvedByValue', 'pendingStatus', 'supersededByDate', 'supersededByValue', 'normalizationStatus', 'normalizationApplied', 'normalizationWarnings', 'sourceId'];
   const body = [cols.join(',')].concat(rows.map((row) => cols.map((key) => csvEscape(String((row as any)[key] ?? ''))).join(','))).join('\n');
   const blob = new Blob([body], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
