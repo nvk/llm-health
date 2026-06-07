@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.3 - 2026-06-07
+
+- Added regression coverage for alias-only profile enrollment, default profile merging, and profile upserts.
+- Hardened v2 static exports so malformed or unsafe enrolled HUB profiles are skipped before entering `data.js`.
+- Filtered invalid canonical CSV profile IDs from v2 static export observations, reports, and wearable rows.
+- Kept release/privacy gates green after the autoresearch quality pass.
+
 ## 0.0.2 - 2026-06-07
 
 - Added review-board UX pass for the packaged v2 static dashboard: own-risk shell, review cards, domain map, view brief, clearer flag/pending semantics, and dark amber theme fixes.
