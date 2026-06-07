@@ -1,6 +1,6 @@
-# Assessment v3 static cockpit frontend
+# Assessment v3 static board frontend
 
-This is the source for the polished static `health ui` cockpit. It is built once during development and the compiled assets are packaged under:
+This is the source for the polished static `health ui` board. It is built once during development and the compiled assets are packaged under:
 
 ```text
 src/llm_health/assessment_v2/web_static_v3/

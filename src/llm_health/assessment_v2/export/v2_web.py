@@ -95,7 +95,7 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
 
 
 def _copy_static_assets(output_dir: Path) -> None:
-    """Copy the packaged static cockpit assets.
+    """Copy the packaged static board assets.
 
     The v3 UI is a prebuilt React/Mantine bundle.  The legacy hand-rolled v2 files
     remain packaged as a fallback/source reference, but exported dashboards should

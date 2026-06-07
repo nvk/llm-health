@@ -56,10 +56,10 @@ def test_packaged_v2_static_ui_preserves_tags_and_privacy() -> None:
     assert "source_file_alias" not in text
 
 
-def test_packaged_v3_static_ui_uses_framework_cockpit() -> None:
+def test_packaged_v3_static_ui_uses_framework_board() -> None:
     text = _v3_asset_text()
 
-    assert "Assessment cockpit" in text
+    assert "Assessment board" in text
     assert "data-v3-ui" in text
     assert "Context overlays" in text
     assert "Source flag rings" in text
@@ -67,6 +67,11 @@ def test_packaged_v3_static_ui_uses_framework_cockpit() -> None:
     assert "Overlay comparison" in text
     assert "mantine" in text.lower()
     assert "recharts" in text.lower() or "recharts-wrapper" in text
+    assert "--paper-grain" in text
+    assert "--corner-lg" in text
+    assert "QA issue" in text
+    assert "Data gap" in text
+    assert "Wearable context" in text
 
 
 def test_packaged_v3_static_ui_privacy_contract() -> None:

@@ -1,13 +1,18 @@
 # Changelog
 
+## 0.0.8 - 2026-06-07
+
+- Tightened the Assessment board visual system with squarer corners, lower shadows, warm paper surfaces, and subtle Basecamp-like texture.
+- Replaced raw enum-looking tag labels in the UI with readable badges while preserving the underlying durable tags.
+
 ## 0.0.7 - 2026-06-07
 
-- Fixed the packaged Assessment cockpit opening blank from `file://` in Chrome/Safari by using a deferred classic bundle script and removing CORS-only asset attributes.
+- Fixed the packaged Assessment board opening blank from `file://` in Chrome/Safari by using a deferred classic bundle script and removing CORS-only asset attributes.
 - Added a static contract test so future frontend builds remain direct-file-open compatible.
 
 ## 0.0.6 - 2026-06-07
 
-- Replaced the exported Assessment static dashboard with a prebuilt React + Mantine + Recharts cockpit.
+- Replaced the exported Assessment static dashboard with a prebuilt React + Mantine + Recharts board.
 - Added polished card, tab, source-table, domain-map, overlay/stacked timeline, context-overlay, light/dark, and bookmarkable-state UX.
 - Kept the Python export flow local-first: `health ui` still writes de-identified `data.js` plus static assets into the configured HUB.
 - Added release tests for the v3 framework bundle and static privacy contract.

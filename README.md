@@ -102,7 +102,7 @@ health ui
 
 `health ui` exports to `<resolved HUB>/v2-web/` and opens `index.html`. Use `--no-open` for scripts or
 `--output <dir>` to write somewhere else. The command requires the local own-risk agreement and uses
-only de-identified canonical CSV exports. The packaged static cockpit is prebuilt from React + Mantine +
+only de-identified canonical CSV exports. The packaged static board is prebuilt from React + Mantine +
 Recharts assets, so end users do not need Node or a web server.
 
 ## First-run onboarding

@@ -210,6 +210,15 @@ const SMOOTH_OPTIONS: ComboboxItem[] = [
 ];
 const PALETTE = ['#2f6fb2', '#2f855a', '#b7791f', '#805ad5', '#d94670', '#0891b2', '#b64035', '#64748b', '#14b8a6', '#f97316'];
 const CONTEXT_COLOR = '#a36a00';
+const TAG_LABELS: Record<string, string> = {
+  OBSERVED: 'Observed',
+  DERIVED: 'Derived',
+  WEARABLE_CONTEXT: 'Wearable context',
+  CONTEXT: 'Context',
+  INFERENCE: 'Inference',
+  DATA_GAP: 'Data gap',
+  QA_ISSUE: 'QA issue',
+};
 
 function App() {
   const labRows = useMemo(() => (DATA.observations || []).map(normalizeLab).filter(Boolean) as LabPoint[], []);
@@ -246,7 +255,20 @@ function App() {
   const theme = state.theme;
 
   return (
-    <MantineProvider forceColorScheme={theme} theme={{ primaryColor: theme === 'dark' ? 'yellow' : 'blue', defaultRadius: 'md' }}>
+    <MantineProvider
+      forceColorScheme={theme}
+      theme={{
+        primaryColor: theme === 'dark' ? 'yellow' : 'blue',
+        defaultRadius: 'sm',
+        radius: {
+          xs: rem(2),
+          sm: rem(3),
+          md: rem(5),
+          lg: rem(7),
+          xl: rem(8),
+        },
+      }}
+    >
       <AppShell navbar={{ width: 334, breakpoint: 'sm' }} padding="lg" className="health-shell" data-v3-ui data-theme={theme}>
         <AppShell.Navbar p="md" className="nav-panel">
           <Stack gap="md" h="100%">
@@ -256,7 +278,7 @@ function App() {
               </ThemeIcon>
               <div>
                 <Text size="xs" tt="uppercase" fw={800} c="dimmed" lts={1.6}>llm-health</Text>
-                <Title order={2} className="nav-title">Assessment cockpit</Title>
+                <Title order={2} className="nav-title">Assessment board</Title>
                 <Text size="sm" c="dimmed">Private local review board</Text>
               </div>
             </Group>
@@ -473,7 +495,7 @@ function SummaryGrid({ rows, series, state, setState }: {
     { title: 'Evidence points', value: numeric.toLocaleString(), note: `${series.length} plotted series`, icon: IconChartDots3, section: 'timeline' as SectionId },
     { title: 'Source flags', value: flagged.toLocaleString(), note: flagged ? 'Click to audit' : 'None in filter', icon: IconFlag, section: 'sources' as SectionId, focus: 'flags' as RowFocus },
     { title: 'Pending rows', value: pending.toLocaleString(), note: 'Never plotted as dots', icon: IconAlertTriangle, section: 'sources' as SectionId, focus: 'pending' as RowFocus },
-    { title: 'Derived rows', value: derived.toLocaleString(), note: 'Visible as DERIVED tags', icon: IconActivity, section: 'sources' as SectionId },
+    { title: 'Derived rows', value: derived.toLocaleString(), note: 'Visible as Derived tags', icon: IconActivity, section: 'sources' as SectionId },
   ];
   return (
     <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
@@ -571,7 +593,7 @@ function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
 function ReviewCard({ title, tag, value, body, onClick }: { title: string; tag: string; value: string; body: string; onClick: () => void }) {
   return (
     <Card className="review-card" p="lg" radius="xl" onClick={onClick}>
-      <Group justify="space-between" mb="xs"><Badge className={`tag tag-${tag.toLowerCase()}`}>{tag}</Badge><IconExternalLink size={16} /></Group>
+      <Group justify="space-between" mb="xs"><Badge className={`tag tag-${tag.toLowerCase()}`} data-tag={tag} title={tag}>{tagLabel(tag)}</Badge><IconExternalLink size={16} /></Group>
       <Title order={3}>{title}</Title>
       <Text className="review-value">{value}</Text>
       <Text size="sm" c="dimmed">{body}</Text>
@@ -663,8 +685,8 @@ function SeriesCard({ series, state }: { series: Series; state: UiState }) {
         <div className="chart-title-wrap">
           <Group gap="xs">
             <Title order={4} className="chart-title">{series.label}</Title>
-            {series.derived ? <Badge color="violet" variant="light">DERIVED</Badge> : null}
-            {series.kind === 'context' ? <Badge color="yellow" variant="light">WEARABLE_CONTEXT</Badge> : null}
+            {series.derived ? <Badge color="violet" variant="light" data-tag="DERIVED" title="DERIVED">{tagLabel('DERIVED')}</Badge> : null}
+            {series.kind === 'context' ? <Badge color="yellow" variant="light" data-tag="WEARABLE_CONTEXT" title="WEARABLE_CONTEXT">{tagLabel('WEARABLE_CONTEXT')}</Badge> : null}
           </Group>
           <Text size="xs" c="dimmed">{series.category} · {series.points.length} points · latest {latest ? `${latest.date} ${formatValue(latest.rawValue, series.unit)}` : '—'} · {series.ref?.label || 'range missing'}</Text>
         </div>
@@ -785,7 +807,7 @@ function SourceTableRow({ row }: { row: LabPoint }) {
     <Table.Tr>
       <Table.Td><Text fw={700}>{row.date}</Text></Table.Td>
       <Table.Td>{row.category}</Table.Td>
-      <Table.Td><Group gap="xs"><Text fw={700}>{row.marker}</Text>{row.derived ? <Badge size="xs" color="violet">DERIVED</Badge> : null}</Group></Table.Td>
+      <Table.Td><Group gap="xs"><Text fw={700}>{row.marker}</Text>{row.derived ? <Badge size="xs" color="violet" data-tag="DERIVED" title="DERIVED">{tagLabel('DERIVED')}</Badge> : null}</Group></Table.Td>
       <Table.Td><Text ff="monospace">{row.valueRaw || (row.value !== null ? formatValue(row.value, row.unit) : '—')}</Text></Table.Td>
       <Table.Td><Text size="sm" c="dimmed">{row.refRaw || '—'}</Text></Table.Td>
       <Table.Td>{row.pending ? <Badge color="orange">pending</Badge> : row.flagRaw ? <Badge color="red">{row.flagRaw}</Badge> : <Badge color="green" variant="light">ok</Badge>}</Table.Td>
@@ -1249,6 +1271,10 @@ function profileRank(id: string): number {
 
 function displayAlias(id: string): string {
   return id ? id[0].toUpperCase() + id.slice(1) : 'Profile';
+}
+
+function tagLabel(tag: string): string {
+  return TAG_LABELS[tag] || tag.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function clean(value: unknown): string {

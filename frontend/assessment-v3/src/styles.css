@@ -1,9 +1,9 @@
 :root {
   color-scheme: light dark;
-  --bg: #f5f7fb;
-  --paper: #ffffff;
-  --paper-soft: #f9fbff;
-  --border: #dbe3ef;
+  --bg: #f4f1e8;
+  --paper: #fffdf7;
+  --paper-soft: #faf6ed;
+  --border: #d8d0c1;
   --ink: #172033;
   --muted: #667085;
   --accent: #2f6fb2;
@@ -12,7 +12,17 @@
   --range-band: #dff2e6;
   --range-line: #74a68a;
   --amber: #f2b84b;
-  --shadow: 0 20px 60px rgba(39, 54, 77, .10);
+  --shadow: 0 8px 22px rgba(39, 54, 77, .10);
+  --corner-xs: 2px;
+  --corner-sm: 3px;
+  --corner-md: 5px;
+  --corner-lg: 7px;
+  --paper-grain:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 7%, transparent) .55px, transparent .65px),
+    linear-gradient(135deg, color-mix(in srgb, var(--paper) 88%, transparent), color-mix(in srgb, var(--paper-soft) 96%, transparent));
+  --field-grain:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 5%, transparent) .45px, transparent .58px),
+    linear-gradient(180deg, color-mix(in srgb, var(--paper-soft) 98%, transparent), color-mix(in srgb, var(--paper) 92%, transparent));
 }
 
 [data-theme='dark'] {
@@ -27,33 +37,77 @@
   --flag: #f07868;
   --range-band: #1f3a2b;
   --range-line: #d0a24b;
-  --shadow: 0 20px 60px rgba(0, 0, 0, .35);
+  --shadow: 0 8px 24px rgba(0, 0, 0, .36);
+  --paper-grain:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--paper) 9%, transparent) .55px, transparent .68px),
+    linear-gradient(135deg, color-mix(in srgb, var(--paper) 96%, transparent), color-mix(in srgb, var(--paper-soft) 72%, transparent));
+  --field-grain:
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--paper) 8%, transparent) .45px, transparent .58px),
+    linear-gradient(180deg, color-mix(in srgb, var(--paper-soft) 92%, transparent), color-mix(in srgb, var(--paper) 88%, transparent));
 }
 
 html, body, #root { min-height: 100%; }
 body {
   margin: 0;
-  background: radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 13%, transparent), transparent 34rem), var(--bg);
+  background: var(--bg);
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .health-shell {
+  position: relative;
   min-height: 100vh;
-  background: transparent;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 10%, transparent), transparent 34rem),
+    linear-gradient(90deg, color-mix(in srgb, var(--ink) 2.4%, transparent) 1px, transparent 1px),
+    linear-gradient(0deg, color-mix(in srgb, var(--ink) 2%, transparent) 1px, transparent 1px),
+    var(--bg);
+  background-size: auto, 30px 30px, 30px 30px, auto;
+}
+
+.health-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, color-mix(in srgb, var(--ink) 7%, transparent) .42px, transparent .52px),
+    radial-gradient(circle, color-mix(in srgb, var(--paper) 80%, transparent) .38px, transparent .5px);
+  background-position: 0 0, 6px 7px;
+  background-size: 12px 12px, 17px 17px;
+  opacity: .28;
+  mix-blend-mode: multiply;
+  z-index: 0;
+}
+
+[data-theme='dark'].health-shell::before {
+  opacity: .2;
+  mix-blend-mode: screen;
 }
 
 .nav-panel {
-  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  background:
+    var(--paper-grain),
+    color-mix(in srgb, var(--paper) 92%, transparent);
+  background-size: 12px 12px, auto;
   border-right: 1px solid var(--border);
   backdrop-filter: blur(16px);
+}
+
+.mantine-AppShell-main {
+  position: relative;
+  z-index: 1;
 }
 
 .nav-title { font-size: 1.35rem; letter-spacing: -.03em; }
 .controls-scroll { flex: 1; min-height: 0; }
 .risk-card, .board-card, .chart-card, .hero, .stat-card, .review-card, .category-section, .empty-card {
-  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  background:
+    var(--paper-grain),
+    color-mix(in srgb, var(--paper) 94%, transparent);
+  background-size: 12px 12px, auto;
   border: 1px solid var(--border);
+  border-radius: var(--corner-lg) !important;
   box-shadow: var(--shadow);
 }
 
@@ -67,7 +121,7 @@ body {
   inset: -7rem -5rem auto auto;
   width: 24rem;
   height: 24rem;
-  border-radius: 999px;
+  border-radius: 50%;
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   pointer-events: none;
 }
@@ -79,9 +133,12 @@ body {
   align-items: center;
   gap: .45rem;
   padding: .48rem .72rem;
-  border-radius: 999px;
+  border-radius: var(--corner-md);
   border: 1px solid var(--border);
-  background: var(--paper-soft);
+  background:
+    var(--field-grain),
+    var(--paper-soft);
+  background-size: 10px 10px, auto;
   color: var(--ink);
   font-weight: 800;
   font-size: .86rem;
@@ -101,34 +158,44 @@ body {
   text-align: left;
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 1rem;
-  background: var(--paper-soft);
+  border-radius: var(--corner-lg);
+  background:
+    var(--field-grain),
+    var(--paper-soft);
+  background-size: 10px 10px, auto;
   color: var(--ink);
   padding: .95rem;
 }
 
 .main-tabs [role='tablist'] {
-  background: color-mix(in srgb, var(--paper) 90%, transparent);
+  background:
+    var(--field-grain),
+    color-mix(in srgb, var(--paper) 90%, transparent);
+  background-size: 10px 10px, auto;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--corner-lg);
   padding: .25rem;
   display: inline-flex;
 }
-.main-tabs [role='tab'] { border-radius: 999px; font-weight: 800; }
+.main-tabs [role='tab'] { border-radius: var(--corner-md); font-weight: 800; }
 
 .chart-card { min-height: 310px; }
 .chart-title { font-size: 1rem; letter-spacing: -.02em; max-width: 36rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chart-title-wrap { min-width: 0; }
 .chart-frame { height: 230px; width: 100%; }
 .chart-frame.tall { height: 460px; }
+.recharts-surface { border-radius: var(--corner-sm); }
 .recharts-wrapper text { fill: var(--muted); font-family: inherit; }
 .recharts-cartesian-grid line { stroke: color-mix(in srgb, var(--border) 86%, transparent); }
 .date-label { fill: var(--muted); font-size: 10px; font-weight: 800; }
 
 .chart-tooltip {
-  background: var(--paper);
+  background:
+    var(--paper-grain),
+    var(--paper);
+  background-size: 12px 12px, auto;
   border: 1px solid var(--border);
-  border-radius: .85rem;
+  border-radius: var(--corner-lg);
   padding: .75rem .85rem;
   box-shadow: var(--shadow);
   color: var(--ink);
@@ -138,7 +205,7 @@ body {
   display: inline-block;
   width: .75rem;
   height: .75rem;
-  border-radius: 999px;
+  border-radius: var(--corner-xs);
   margin-right: .4rem;
   vertical-align: middle;
 }
@@ -153,8 +220,12 @@ body {
 }
 
 .category-accordion .mantine-Accordion-item {
-  background: color-mix(in srgb, var(--paper) 94%, transparent);
+  background:
+    var(--paper-grain),
+    color-mix(in srgb, var(--paper) 94%, transparent);
+  background-size: 12px 12px, auto;
   border: 1px solid var(--border);
+  border-radius: var(--corner-lg) !important;
   box-shadow: var(--shadow);
 }
 
@@ -170,8 +241,11 @@ body {
 .mini-row {
   padding: .65rem .8rem;
   border: 1px solid var(--border);
-  border-radius: .9rem;
-  background: var(--paper-soft);
+  border-radius: var(--corner-md);
+  background:
+    var(--field-grain),
+    var(--paper-soft);
+  background-size: 10px 10px, auto;
 }
 
 .tag { font-weight: 900; letter-spacing: .04em; }
@@ -179,6 +253,10 @@ body {
 .tag-derived { color: #805ad5; }
 .tag-context, .tag-wearable_context { color: #a36a00; }
 .tag-data_gap, .tag-qa_issue { color: var(--flag); }
+.health-shell .mantine-Badge-label {
+  text-transform: none;
+  letter-spacing: .018em;
+}
 
 .profile-switch [data-active] {
   background: var(--accent) !important;
@@ -186,9 +264,33 @@ body {
 }
 .toggle-stack {
   border: 1px solid var(--border);
-  border-radius: 1rem;
+  border-radius: var(--corner-lg);
   padding: .8rem;
-  background: var(--paper-soft);
+  background:
+    var(--field-grain),
+    var(--paper-soft);
+  background-size: 10px 10px, auto;
+}
+
+.mantine-Input-input,
+.mantine-Button-root,
+.mantine-ActionIcon-root,
+.mantine-SegmentedControl-root,
+.mantine-Badge-root,
+.mantine-MultiSelect-pill,
+.mantine-Checkbox-input,
+.mantine-Accordion-control {
+  border-radius: var(--corner-md) !important;
+}
+
+.mantine-SegmentedControl-indicator {
+  border-radius: var(--corner-sm) !important;
+}
+
+.mantine-Input-input,
+.mantine-SegmentedControl-root {
+  background-image: var(--field-grain) !important;
+  background-size: 10px 10px, auto !important;
 }
 
 @media (max-width: 820px) {
