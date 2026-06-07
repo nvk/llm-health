@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.21 - 2026-06-07
+
+- Fixed archive privacy scanning so email-looking byte sequences in binary DuckDB/Parquet files do not create false skips.
+
 ## 0.0.20 - 2026-06-07
 
 - Added `health archive create/list/verify` for compressed, privacy-scanned HUB snapshots under `<HUB>/archives/`.

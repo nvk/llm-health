@@ -42,6 +42,7 @@ DANGEROUS_BYTES = (
     b"provider_alias",
 )
 _EMAIL_BYTES_RE = re.compile(rb"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
+TEXT_SCAN_SUFFIXES = frozenset({".css", ".html", ".js", ".json", ".jsonl", ".md", ".txt"})
 
 
 @dataclass(frozen=True)
@@ -157,7 +158,7 @@ def _dangerous_hit(path: Path) -> str | None:
     for needle in DANGEROUS_BYTES:
         if needle in data:
             return f"contains blocked raw-source marker {needle.decode('utf-8', 'ignore')!r}"
-    if _EMAIL_BYTES_RE.search(data):
+    if path.suffix.lower() in TEXT_SCAN_SUFFIXES and _EMAIL_BYTES_RE.search(data):
         return "contains email-looking text"
     return None
 

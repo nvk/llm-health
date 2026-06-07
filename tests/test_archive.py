@@ -22,6 +22,7 @@ def test_archive_skips_unknown_roots_and_raw_source_markers(tmp_path: Path) -> N
     (tmp_path / "raw" / "original.pdf").write_bytes(b"not eligible by allowlist")
     (tmp_path / "v2-data").mkdir()
     (tmp_path / "v2-data" / "health.duckdb").write_bytes(b"embedded raw-source.pdf")
+    (tmp_path / "v2-data" / "false-positive.duckdb").write_bytes(b"random binary jane@example.com")
 
     members, skipped = plan_archive_members(tmp_path)
     member_paths = {member.path for member in members}
@@ -30,6 +31,7 @@ def test_archive_skips_unknown_roots_and_raw_source_markers(tmp_path: Path) -> N
     assert "v2-web/index.html" in member_paths
     assert "raw/original.pdf" not in member_paths
     assert "v2-data/health.duckdb" in skipped_paths
+    assert "v2-data/false-positive.duckdb" in member_paths
 
     with pytest.raises(PrivacyError):
         plan_archive_members(tmp_path, strict=True)

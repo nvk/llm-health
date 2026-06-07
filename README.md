@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.21** | Fixes archive binary scanning so sanitized DuckDB/Parquet files are included instead of false-skipped. |
 | **0.0.20** | Adds privacy-scanned `health archive` snapshots and scrubs v2 DuckDB/Parquet source-file/provider fields. |
 | **0.0.19** | Dashboard export privacy: source filenames/provider aliases are scrubbed from `data.js`. |
 | **0.0.18** | Superseded pending rows: later numeric follow-up removes old pending placeholders from active pending counts. |
