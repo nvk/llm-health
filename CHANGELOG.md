@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.16 - 2026-06-07
+
+- Expanded Assessment unit normalization for common CBC, thyroid, vitals, MCHC, and ceruloplasmin unit aliases.
+- Treated pH, BMI, and specific gravity as unitless so QA warnings focus on actual missing-unit risks.
+
 ## 0.0.15 - 2026-06-07
 
 - Added Assessment export language/unit normalization so charts and source rows prefer English display fields and canonical units.

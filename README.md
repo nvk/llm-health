@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.16** | Broader unit normalization for CBC/thyroid/vitals and cleaner unitless-marker QA. |
 | **0.0.15** | English/canonical display normalization plus QA review for translated labs and unit conversions. |
 | **0.0.14** | Resolved-flag UI: later normal follow-up demotes old abnormal rows from active alerts. |
 | **0.0.13** | Family graph: `health family`, hereditary/household tags, family risk notes, service/docs/plugin coverage. |

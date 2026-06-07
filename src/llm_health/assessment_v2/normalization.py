@@ -150,6 +150,69 @@ UNIT_RULES = [
         factors={"g/dl": 1.0, "g/l": 0.1},
         rationale="Mass concentration conversion: 1 g/dL = 10 g/L.",
     ),
+    UnitRule(
+        marker_patterns=("mchc",),
+        target_unit="g/dL",
+        factors={"g/dl": 1.0, "g/l": 0.1},
+        rationale="Mass concentration conversion: 1 g/dL = 10 g/L.",
+    ),
+    UnitRule(
+        marker_patterns=(
+            "wbc",
+            "leukocyte",
+            "leucocyte",
+            "neutrophils",
+            "lymphocytes",
+            "monocytes",
+            "eosinophils",
+            "basophils",
+        ),
+        target_unit="10^3/µL",
+        factors={"10^3/µl": 1.0, "10^9/l": 1.0},
+        rationale="Cell-count convention: 1 x10^3/µL = 1 x10^9/L.",
+    ),
+    UnitRule(
+        marker_patterns=("platelet", "plaquetas"),
+        target_unit="10^3/µL",
+        factors={"10^3/µl": 1.0, "10^9/l": 1.0},
+        rationale="Cell-count convention: 1 x10^3/µL = 1 x10^9/L.",
+    ),
+    UnitRule(
+        marker_patterns=("rbc", "erythrocyte", "red blood"),
+        target_unit="10^6/µL",
+        factors={"10^6/µl": 1.0, "10^12/l": 1.0},
+        rationale="Cell-count convention: 1 x10^6/µL = 1 x10^12/L.",
+    ),
+    UnitRule(
+        marker_patterns=("tsh",),
+        target_unit="µIU/mL",
+        factors={"µiu/ml": 1.0, "miu/l": 1.0},
+        rationale="Thyroid convention: 1 mIU/L = 1 µIU/mL.",
+    ),
+    UnitRule(
+        marker_patterns=("fsh", "lh"),
+        target_unit="mIU/mL",
+        factors={"miu/ml": 1.0},
+        rationale="Spanish mUI/mL and English mIU/mL denote milli-international units per mL.",
+    ),
+    UnitRule(
+        marker_patterns=("ceruloplasmin",),
+        target_unit="mg/L",
+        factors={"mg/l": 1.0, "g/l": 1000.0},
+        rationale="Mass concentration conversion: 1 g/L = 1000 mg/L.",
+    ),
+    UnitRule(
+        marker_patterns=("weight", "body mass", "peso"),
+        target_unit="kg",
+        factors={"kg": 1.0, "lb": 0.45359237, "lbs": 0.45359237},
+        rationale="Exact international avoirdupois pound conversion: 1 lb = 0.45359237 kg.",
+    ),
+    UnitRule(
+        marker_patterns=("height", "altura"),
+        target_unit="cm",
+        factors={"cm": 1.0, "in": 2.54, "inch": 2.54, "inches": 2.54},
+        rationale="International inch conversion: 1 in = 2.54 cm.",
+    ),
 ]
 
 
@@ -204,7 +267,7 @@ def normalize_observation_row(row: dict[str, str]) -> dict[str, Any]:
         applied.append("result/status translated to English")
     if _is_non_english(row.get("reference_range_raw")):
         applied.append("reference range translated to English")
-    if numeric is not None and not unit_display:
+    if numeric is not None and not unit_display and not _is_unitless_marker(marker):
         warnings.append("numeric result lacks a display unit")
     if rule and unit_key and unit_key not in rule.factors:
         warnings.append(f"no approved conversion from {source_unit} to {rule.target_unit}")
@@ -301,6 +364,9 @@ def canonical_unit(unit: str | None) -> tuple[str, str]:
     text = re.sub("umol", "µmol", text, flags=re.IGNORECASE)
     text = re.sub("ug", "µg", text, flags=re.IGNORECASE)
     text = re.sub("uiu", "µIU", text, flags=re.IGNORECASE)
+    text = re.sub("uui", "µIU", text, flags=re.IGNORECASE)
+    text = re.sub("mui", "mIU", text, flags=re.IGNORECASE)
+    text = re.sub("ul", "µL", text, flags=re.IGNORECASE)
     compact = re.sub(r"\s+", "", text)
     lower = compact.lower()
     display_map = {
@@ -312,15 +378,28 @@ def canonical_unit(unit: str | None) -> tuple[str, str]:
         "mg/dl": "mg/dL",
         "g/dl": "g/dL",
         "g/l": "g/L",
+        "mg/l": "mg/L",
         "mmol/l": "mmol/L",
         "µmol/l": "µmol/L",
         "nmol/l": "nmol/L",
         "miu/l": "mIU/L",
+        "miu/ml": "mIU/mL",
         "µiu/ml": "µIU/mL",
+        "10^3/µl": "10^3/µL",
+        "10^6/µl": "10^6/µL",
+        "10^9/l": "10^9/L",
+        "10^12/l": "10^12/L",
         "pg/ml": "pg/mL",
+        "pg/dl": "pg/dL",
         "ng/dl": "ng/dL",
+        "l/l": "L/L",
         "kg": "kg",
+        "lb": "lb",
+        "lbs": "lb",
         "cm": "cm",
+        "in": "in",
+        "inch": "in",
+        "inches": "in",
         "%": "%",
     }
     return display_map.get(lower, compact), lower
@@ -404,6 +483,13 @@ def _rule_for_marker(marker: str) -> UnitRule | None:
         if any(pattern in needle for pattern in rule.marker_patterns):
             return rule
     return None
+
+
+def _is_unitless_marker(marker: str) -> bool:
+    text = _key(marker)
+    if "specific gravity" in text or "body mass index" in text or "bmi" in text:
+        return True
+    return bool(re.search(r"\bph\b", text))
 
 
 def _value_display(
