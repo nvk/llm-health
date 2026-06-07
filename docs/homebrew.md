@@ -26,6 +26,25 @@ health close-gaps --profile <alias>
 The `--accept-risk` flag records one local own-risk agreement for that HUB. To inspect or accept
 separately, use `health agreement show` and `health agreement accept --own-risk`.
 
+
+## Automated local UI
+
+Configure the private HUB and wiki root once:
+
+```sh
+health config hub-path ~/health --init --accept-risk
+health config wiki-root <health-assessments-topic-root>
+```
+
+Then regenerate and open the static Assessment v2 UI with:
+
+```sh
+health ui
+```
+
+By default this writes to `<resolved HUB>/v2-web/` and opens `index.html`. For automation, use
+`health ui --no-open`; for custom output, use `health ui --output <dir>`.
+
 Formula behavior:
 
 - Installs `health`, `llm-health`, and `health-v2`.

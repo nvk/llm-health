@@ -88,6 +88,22 @@ health doctor
 Then commands such as `health review --profile rod` and `health sync-v2 ...` use that HUB by default unless `--store` is supplied.
 
 
+
+## One-command local UI
+
+After the HUB and health-assessments wiki root are configured once, users can regenerate and open the
+static Assessment v2 UI with a single command:
+
+```sh
+health config hub-path ~/health --init --accept-risk
+health config wiki-root <health-assessments-topic-root>
+health ui
+```
+
+`health ui` exports to `<resolved HUB>/v2-web/` and opens `index.html`. Use `--no-open` for scripts or
+`--output <dir>` to write somewhere else. The command requires the local own-risk agreement and uses
+only de-identified canonical CSV exports.
+
 ## First-run onboarding
 
 Run `health` or `health welcome` for the first-run flow. It starts with the own-risk disclaimer,

@@ -12,6 +12,10 @@ The original CLI remains available as the console script:
 health-v2 doctor
 health-v2 build --from-wiki
 health-v2 export-web --output data/v2-web
+
+# Package-level one-command flow after configuring the HUB and wiki root:
+health config wiki-root <health-assessments-topic-root>
+health ui
 ```
 
 The dependency-light analytics/static-export dependency set lives behind `v2-core`:

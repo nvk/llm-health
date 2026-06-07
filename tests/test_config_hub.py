@@ -6,7 +6,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from llm_health.config import expand_leading_tilde, resolve_store_path, set_hub_path
+from llm_health.config import (
+    expand_leading_tilde,
+    resolve_store_path,
+    resolve_wiki_root,
+    set_hub_path,
+    set_wiki_root,
+)
 
 
 class HubConfigTests(unittest.TestCase):
@@ -25,6 +31,29 @@ class HubConfigTests(unittest.TestCase):
             os.environ["LLM_HEALTH_CONFIG"] = str(config_path)
             try:
                 self.assertEqual(resolve_store_path(), hub)
+            finally:
+                if old is None:
+                    os.environ.pop("LLM_HEALTH_CONFIG", None)
+                else:
+                    os.environ["LLM_HEALTH_CONFIG"] = old
+
+
+    def test_config_wiki_root_resolves(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.json"
+            hub = Path(tmp) / "health-hub"
+            wiki_root = Path(tmp) / "health-assessments"
+            set_hub_path(hub, config_path)
+            set_wiki_root(wiki_root, config_path)
+            data = json.loads(config_path.read_text())
+            self.assertEqual(data["hub_path"], str(hub))
+            self.assertEqual(data["wiki_root"], str(wiki_root))
+
+            old = os.environ.get("LLM_HEALTH_CONFIG")
+            os.environ["LLM_HEALTH_CONFIG"] = str(config_path)
+            try:
+                self.assertEqual(resolve_store_path(), hub)
+                self.assertEqual(resolve_wiki_root(), wiki_root)
             finally:
                 if old is None:
                     os.environ.pop("LLM_HEALTH_CONFIG", None)

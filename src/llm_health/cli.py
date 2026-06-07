@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+import webbrowser
 from importlib import resources
+from pathlib import Path
 
 from llm_health import __version__
 from llm_health.agreement import (
@@ -13,7 +15,14 @@ from llm_health.agreement import (
     write_agreement_acceptance,
 )
 from llm_health.assessment_v2.bridge import import_latest_for_profile
-from llm_health.config import load_config, resolve_store_path, set_hub_path
+from llm_health.assessment_v2.export.v2_web import export_v2_web
+from llm_health.config import (
+    load_config,
+    resolve_store_path,
+    resolve_wiki_root,
+    set_hub_path,
+    set_wiki_root,
+)
 from llm_health.core.models import ContextNote, EnrolledProfile, Observation, stable_id
 from llm_health.core.privacy import PrivacyError, validate_profile_alias
 from llm_health.engine import DiagnosticGapEngine, LeastHarmEngine, ReviewEngine
@@ -152,6 +161,21 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Accept the own-risk agreement when initializing the hub",
     )
+    config_wiki = config_sub.add_parser(
+        "wiki-root", help="Set the default health-assessments wiki root for UI exports"
+    )
+    config_wiki.add_argument("path")
+    config_wiki.add_argument("--config-path")
+
+    ui = sub.add_parser("ui", help="Regenerate and open the local Assessment v2 static UI")
+    _store_arg(ui)
+    _risk_arg(ui)
+    ui.add_argument("--wiki-root", help="Override health-assessments wiki root for this run")
+    ui.add_argument(
+        "--output",
+        help="Override static UI output directory; default is <resolved HUB>/v2-web",
+    )
+    ui.add_argument("--no-open", action="store_true", help="Export only; do not open browser")
 
     agreement = sub.add_parser("agreement", help="Show or accept the own-risk agreement")
     _store_arg(agreement)
@@ -359,6 +383,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         f"config: {config.config_path} ({'exists' if config.config_path.exists() else 'not found'})"
     )
     print(f"hub: {config.hub_path or '[not set]'}")
+    print(f"wiki_root: {config.wiki_root or '[not set]'}")
     print(f"store: {store.root} ({'exists' if exists else 'not initialized'})")
     agreement = read_agreement_status(store.root)
     print(f"agreement: {'accepted' if agreement.accepted else 'not accepted'}")
@@ -476,7 +501,9 @@ def cmd_config(args: argparse.Namespace) -> int:
         config = load_config(args.config_path)
         print(f"config: {config.config_path}")
         print(f"hub: {config.hub_path or '[not set]'}")
-        print(f"resolved_store: {resolve_store_path()}")
+        print(f"wiki_root: {config.wiki_root or '[not set]'}")
+        print(f"resolved_store: {config.hub_path or resolve_store_path()}")
+        print(f"resolved_wiki_root: {config.wiki_root or resolve_wiki_root() or '[not set]'}")
         return 0
     if args.config_command == "hub-path":
         config = set_hub_path(args.path, args.config_path)
@@ -495,7 +522,49 @@ def cmd_config(args: argparse.Namespace) -> int:
             store.init()
             print(f"Initialized llm-health HUB/store: {store.root}")
         return 0
+    if args.config_command == "wiki-root":
+        config = set_wiki_root(args.path, args.config_path)
+        print(f"Saved llm-health wiki_root: {config.wiki_root}")
+        print(f"config: {config.config_path}")
+        return 0
     raise ValueError(f"unknown config command: {args.config_command}")
+
+
+def cmd_ui(args: argparse.Namespace) -> int:
+    store = _private_store_from_args(args)
+    store.init()
+    wiki_root = resolve_wiki_root(args.wiki_root)
+    if wiki_root is None:
+        print(
+            "wiki root not configured. Run `health config wiki-root <wiki-root>` "
+            "or pass `health ui --wiki-root <path>`.",
+            file=sys.stderr,
+        )
+        return 4
+    observations_csv = wiki_root / "output" / "data" / "lab-observations-long.csv"
+    if not observations_csv.exists():
+        print(
+            f"wiki root missing canonical observations CSV: {observations_csv}",
+            file=sys.stderr,
+        )
+        return 4
+    output_dir = Path(args.output).expanduser() if args.output else store.root / "v2-web"
+    export = export_v2_web(wiki_root, output_dir)
+    index_path = export.output_dir / "index.html"
+    print(
+        f"exported UI: {export.observation_count:,} observations, "
+        f"{export.report_count:,} reports, {export.wearable_daily_count:,} wearable daily rows"
+    )
+    print(f"open: {index_path}")
+    if export.latest_weights:
+        weights = ", ".join(
+            f"{profile}: {value:g} kg" for profile, value in sorted(export.latest_weights.items())
+        )
+        print(f"latest weights: {weights}")
+    if not args.no_open:
+        webbrowser.open(index_path.resolve().as_uri())
+        print("browser: opened")
+    return 0
 
 
 def cmd_ingest_note(args: argparse.Namespace) -> int:
@@ -886,6 +955,7 @@ def main(argv: list[str] | None = None) -> int:
         "data-wishlist": cmd_data_wishlist,
         "dr-visit": cmd_dr_visit,
         "config": cmd_config,
+        "ui": cmd_ui,
         "agreement": cmd_agreement,
         "ingest-note": cmd_ingest_note,
         "sync-v2": cmd_sync_v2,

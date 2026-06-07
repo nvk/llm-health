@@ -70,6 +70,78 @@ class CliTests(unittest.TestCase):
             self.assertIn("Apple", wishlist.stdout)
             self.assertIn("Doctor / clinic / lab records", wishlist.stdout)
 
+
+    def test_ui_exports_static_dashboard_with_configured_wiki_root(self):
+        repo = Path(__file__).resolve().parents[1]
+        wiki_root = repo / "tests" / "fixtures" / "v2-wiki"
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "config.json"
+            hub = Path(tmp) / "hub"
+            output = Path(tmp) / "ui"
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(repo / "src")
+            set_hub = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "llm_health",
+                    "config",
+                    "hub-path",
+                    str(hub),
+                    "--config-path",
+                    str(config_path),
+                    "--init",
+                    "--accept-risk",
+                ],
+                cwd=repo,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(set_hub.returncode, 0, set_hub.stderr)
+            set_wiki = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "llm_health",
+                    "config",
+                    "wiki-root",
+                    str(wiki_root),
+                    "--config-path",
+                    str(config_path),
+                ],
+                cwd=repo,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(set_wiki.returncode, 0, set_wiki.stderr)
+            ui = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "llm_health",
+                    "ui",
+                    "--store",
+                    str(hub),
+                    "--output",
+                    str(output),
+                    "--no-open",
+                ],
+                cwd=repo,
+                env={**env, "LLM_HEALTH_CONFIG": str(config_path)},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(ui.returncode, 0, ui.stderr)
+            self.assertIn("exported UI", ui.stdout)
+            self.assertTrue((output / "index.html").exists())
+            self.assertTrue((output / "data.js").exists())
+            self.assertIn("data-row-focus", (output / "index.html").read_text())
+
     def test_dr_visit_cadence_questions(self):
         with tempfile.TemporaryDirectory() as tmp:
             enroll = self.run_cli(

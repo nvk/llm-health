@@ -68,6 +68,10 @@ health agreement accept --own-risk
 health data-wishlist
 health dr-visit --profile rod --cadence monthly --sources
 health init --store .llm-health --accept-risk
+health config hub-path ~/health --init --accept-risk
+health config wiki-root <health-assessments-topic-root>
+health ui
+health ui --no-open
 health enroll --alias sol --birth-year 2018 --role child
 health enroll --alias lele --birth-year 2026 --birth-month 1 --role child
 health profiles
@@ -99,6 +103,15 @@ and on PATH. OpenCode sandboxes external directories; allow the health HUB and `
 in `opencode.json` when the store is outside the project.
 
 ## Workflows
+
+
+### Local static UI
+
+Prefer `health ui` for users who want to look at their data. It resolves the accepted HUB, reads
+`HEALTH_WIKI_ROOT` or `health config wiki-root`, exports the static Assessment v2 dashboard to
+`<HUB>/v2-web/`, and opens it. Use `--no-open` for scripts and `--output <dir>` for a custom export
+folder. If wiki root is missing, guide the user to run `health config wiki-root <path>` once rather
+than asking them to remember `health-v2 export-web` internals.
 
 ### New results
 

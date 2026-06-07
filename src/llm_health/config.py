@@ -8,6 +8,7 @@ from typing import Any
 
 CONFIG_ENV = "LLM_HEALTH_CONFIG"
 HUB_ENV = "LLM_HEALTH_HUB"
+WIKI_ROOT_ENV = "HEALTH_WIKI_ROOT"
 DEFAULT_CONFIG_PATH = Path("~/.config/llm-health/config.json")
 DEFAULT_LOCAL_STORE = Path(".llm-health")
 
@@ -16,11 +17,14 @@ DEFAULT_LOCAL_STORE = Path(".llm-health")
 class HealthConfig:
     config_path: Path
     hub_path: Path | None = None
+    wiki_root: Path | None = None
 
     def to_json(self) -> dict[str, str]:
         data: dict[str, str] = {}
         if self.hub_path is not None:
             data["hub_path"] = collapse_home(self.hub_path)
+        if self.wiki_root is not None:
+            data["wiki_root"] = collapse_home(self.wiki_root)
         return data
 
 
@@ -55,8 +59,10 @@ def load_config(config_path: str | Path | None = None) -> HealthConfig:
         return HealthConfig(config_path=path)
     data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     hub_raw = data.get("hub_path") or data.get("resolved_path")
+    wiki_raw = data.get("wiki_root") or data.get("health_assessments_wiki_root")
     hub = expand_leading_tilde(hub_raw) if hub_raw else None
-    return HealthConfig(config_path=path, hub_path=hub)
+    wiki_root = expand_leading_tilde(wiki_raw) if wiki_raw else None
+    return HealthConfig(config_path=path, hub_path=hub, wiki_root=wiki_root)
 
 
 def save_config(config: HealthConfig) -> None:
@@ -68,8 +74,23 @@ def save_config(config: HealthConfig) -> None:
 
 
 def set_hub_path(hub_path: str | Path, config_path: str | Path | None = None) -> HealthConfig:
-    path = expand_leading_tilde(config_path) if config_path else default_config_path()
-    config = HealthConfig(config_path=path, hub_path=expand_leading_tilde(hub_path))
+    current = load_config(config_path)
+    config = HealthConfig(
+        config_path=current.config_path,
+        hub_path=expand_leading_tilde(hub_path),
+        wiki_root=current.wiki_root,
+    )
+    save_config(config)
+    return config
+
+
+def set_wiki_root(wiki_root: str | Path, config_path: str | Path | None = None) -> HealthConfig:
+    current = load_config(config_path)
+    config = HealthConfig(
+        config_path=current.config_path,
+        hub_path=current.hub_path,
+        wiki_root=expand_leading_tilde(wiki_root),
+    )
     save_config(config)
     return config
 
@@ -84,3 +105,13 @@ def resolve_store_path(explicit_store: str | Path | None = None) -> Path:
     if config.hub_path is not None:
         return config.hub_path
     return DEFAULT_LOCAL_STORE
+
+
+def resolve_wiki_root(explicit_wiki_root: str | Path | None = None) -> Path | None:
+    if explicit_wiki_root:
+        return expand_leading_tilde(explicit_wiki_root)
+    env_root = os.environ.get(WIKI_ROOT_ENV)
+    if env_root:
+        return expand_leading_tilde(env_root)
+    config = load_config()
+    return config.wiki_root
