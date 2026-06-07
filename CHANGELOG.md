@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.15 - 2026-06-07
+
+- Added Assessment export language/unit normalization so charts and source rows prefer English display fields and canonical units.
+- Added normalization QA issues for translated rows, approved conversions, missing units, and mixed display units.
+- Added v3 UI normalization QA cards, source-row focus, QA badges, and CSV fields.
+
 ## 0.0.14 - 2026-06-07
 
 - Added resolved-flag semantics to the Assessment board so older abnormal source flags are demoted when later comparable normal follow-up exists.

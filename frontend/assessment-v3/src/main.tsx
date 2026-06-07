@@ -64,7 +64,7 @@ type TimeRange = 'all' | '30d' | '90d' | 'ytd' | '18mo';
 type TimelineMode = 'stack' | 'overlay';
 type ScaleMode = 'auto' | 'raw' | 'norm' | 'center' | 'pctmean' | 'pctfirst' | 'z' | 'log';
 type AggMode = 'observed' | 'mean-date';
-type RowFocus = 'all' | 'flags' | 'resolved' | 'pending' | 'numeric';
+type RowFocus = 'all' | 'flags' | 'resolved' | 'pending' | 'numeric' | 'qa';
 type OverlayPreset = 'smart' | 'current' | 'flagged' | 'recent' | 'core' | 'context';
 type FlagStatus = 'none' | 'active' | 'resolved';
 
@@ -84,6 +84,7 @@ type HealthPayload = {
   generated?: string;
   source?: string;
   observations?: RawObservation[];
+  normalization_issues?: Record<string, unknown>[];
   reports?: RawReport[];
   wearable_daily?: RawWearable[];
   profile_context?: Record<string, Record<string, unknown>>;
@@ -123,6 +124,9 @@ type LabPoint = {
   method: string;
   confidence: string;
   notes: string;
+  normalizationStatus: string;
+  normalizationApplied: string;
+  normalizationWarnings: string;
   pending: boolean;
   derived: boolean;
   sourceNotePath?: string;
@@ -195,6 +199,7 @@ type UiState = {
 
 const DATA = window.HEALTH_ASSESSMENT_V2 || {};
 const REPORTS = new Map((DATA.reports || []).map((report) => [String(report.source_id || ''), report]));
+const NORMALIZATION_ISSUES = DATA.normalization_issues || [];
 const RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: '30d', label: '30d' },
@@ -470,6 +475,8 @@ function Header({ state, rows, allRows, series, profileOptions, setState }: {
   const flagged = activeFlagRows(rows).length;
   const resolved = resolvedFlagRows(rows).length;
   const pending = rows.filter((row) => row.pending).length;
+  const qa = rows.filter((row) => row.normalizationWarnings || row.normalizationApplied).length;
+  const qaWarnings = rows.filter((row) => row.normalizationWarnings).length;
   const themeToggle = () => setState((current) => ({ ...current, theme: current.theme === 'dark' ? 'light' : 'dark' }));
   return (
     <Paper className="hero" p="xl" radius="xl">
@@ -502,6 +509,7 @@ function Header({ state, rows, allRows, series, profileOptions, setState }: {
         <MetricPill label={`${flagged.toLocaleString()} active flags`} icon={<IconFlag size={15} />} tone={flagged ? 'warn' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: flagged ? 'flags' : 'all' }))} />
         {resolved ? <MetricPill label={`${resolved.toLocaleString()} resolved`} icon={<IconTimeline size={15} />} tone="ok" onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: 'resolved' }))} /> : null}
         <MetricPill label={`${pending.toLocaleString()} pending`} icon={<IconAlertTriangle size={15} />} tone={pending ? 'bad' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: pending ? 'pending' : 'all' }))} />
+        {qa ? <MetricPill label={`${qa.toLocaleString()} normalized`} icon={<IconDatabase size={15} />} tone={qaWarnings ? 'warn' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: 'qa' }))} /> : null}
         <MetricPill label={`latest ${latest || totalLatest || '—'}`} icon={<IconTimeline size={15} />} />
       </Group>
     </Paper>
@@ -561,13 +569,16 @@ function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
   const flagged = activeFlagRows(rows);
   const resolved = resolvedFlagRows(rows);
   const pending = rows.filter((row) => row.pending);
+  const normalizationRows = rows.filter((row) => row.normalizationWarnings || row.normalizationApplied);
+  const normalizationWarnings = rows.filter((row) => row.normalizationWarnings);
+  const exportNormalizationIssues = NORMALIZATION_ISSUES.length;
   const recent = [...rows].sort((a, b) => b.time - a.time).slice(0, 8);
   const rowsByCategory = countBy(allRows, (row) => row.category);
   const domainCards = [...groups.entries()].map(([category, list]) => ({ category, count: list.length, flags: list.reduce((sum, s) => sum + flagCount(s), 0), resolved: list.reduce((sum, s) => sum + resolvedFlagCount(s), 0) }));
 
   return (
     <Stack gap="lg">
-      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md">
+      <SimpleGrid cols={{ base: 1, md: 4 }} spacing="md">
         <ReviewCard
           title="Needs source audit"
           tag={flagged.length ? 'QA_ISSUE' : 'OBSERVED'}
@@ -588,6 +599,13 @@ function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
           value={`${series.length} series`}
           body={`${state.category}; ${state.range}; latest ${latestDate(rows) || '—'}.`}
           onClick={() => setState((current) => ({ ...current, section: 'timeline' }))}
+        />
+        <ReviewCard
+          title="Normalization QA"
+          tag={normalizationWarnings.length ? 'QA_ISSUE' : 'OBSERVED'}
+          value={normalizationWarnings.length ? `${normalizationWarnings.length} review` : `${normalizationRows.length} applied`}
+          body={normalizationRows.length ? 'English display fields and approved unit conversions are used in charts/tables.' : exportNormalizationIssues ? 'Other filters have normalization notes.' : 'Display language and units already look consistent.'}
+          onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: normalizationRows.length ? 'qa' : 'all' }))}
         />
       </SimpleGrid>
 
@@ -841,7 +859,7 @@ function SourcesTable({ rows, totalRows, rowFocus, setState }: {
           <Text size="sm" c="dimmed">{visible.length.toLocaleString()} shown of {totalRows.toLocaleString()} matching rows. Resolved flags are historical, not active alerts.</Text>
         </div>
         <SegmentedControl
-          data={[{ value: 'all', label: 'All' }, { value: 'flags', label: 'Active' }, { value: 'resolved', label: 'Resolved' }, { value: 'pending', label: 'Pending' }, { value: 'numeric', label: 'Numeric' }]}
+          data={[{ value: 'all', label: 'All' }, { value: 'flags', label: 'Active' }, { value: 'resolved', label: 'Resolved' }, { value: 'pending', label: 'Pending' }, { value: 'numeric', label: 'Numeric' }, { value: 'qa', label: 'QA' }]}
           value={rowFocus}
           onChange={(value) => setState((current) => ({ ...current, rowFocus: value as RowFocus }))}
         />
@@ -867,7 +885,13 @@ function SourceTableRow({ row }: { row: LabPoint }) {
     <Table.Tr className={row.flagStatus === 'resolved' ? 'resolved-row' : undefined}>
       <Table.Td><Text fw={700}>{row.date}</Text></Table.Td>
       <Table.Td>{row.category}</Table.Td>
-      <Table.Td><Group gap="xs"><Text fw={700}>{row.marker}</Text>{row.derived ? <Badge size="xs" color="violet" data-tag="DERIVED" title="DERIVED">{tagLabel('DERIVED')}</Badge> : null}</Group></Table.Td>
+      <Table.Td>
+        <Group gap="xs">
+          <Text fw={700}>{row.marker}</Text>
+          {row.derived ? <Badge size="xs" color="violet" data-tag="DERIVED" title="DERIVED">{tagLabel('DERIVED')}</Badge> : null}
+          {row.normalizationWarnings ? <Badge size="xs" color="orange" data-tag="QA_ISSUE" title={row.normalizationWarnings}>{tagLabel('QA_ISSUE')}</Badge> : null}
+        </Group>
+      </Table.Td>
       <Table.Td><Text ff="monospace">{row.valueRaw || (row.value !== null ? formatValue(row.value, row.unit) : '—')}</Text></Table.Td>
       <Table.Td><Text size="sm" c="dimmed">{row.refRaw || '—'}</Text></Table.Td>
       <Table.Td><FlagBadge row={row} /></Table.Td>
@@ -885,6 +909,7 @@ function SourceMiniRow({ row }: { row: LabPoint }) {
       </div>
       <Group gap="xs" wrap="nowrap">
         <Text ff="monospace" fw={800}>{row.valueRaw || formatValue(row.value || 0, row.unit)}</Text>
+        {row.normalizationWarnings ? <Badge color="orange" variant="light" size="sm">QA</Badge> : null}
         {row.pending || row.flagRaw ? <FlagBadge row={row} compact /> : null}
       </Group>
     </Group>
@@ -962,12 +987,13 @@ function normalizeLab(row: RawObservation): LabPoint | null {
   const date = clean(row.observation_date) || clean(row.collection_date) || clean(row.report_date);
   const time = parseDate(date);
   if (!date || !Number.isFinite(time)) return null;
-  const valueRaw = clean(row.value_raw);
-  const numeric = parseNumber(row.numeric_value);
-  const resultText = `${row.result_type || ''} ${valueRaw} ${row.interpretation_en || ''}`;
+  const valueRaw = clean(row.value_display_en) || clean(row.value_raw);
+  const numeric = parseNumber(row.numeric_value_display) ?? parseNumber(row.numeric_value);
+  const interpretation = clean(row.interpretation_display_en) || clean(row.interpretation_en);
+  const resultText = `${row.result_type || ''} ${valueRaw} ${interpretation}`;
   const pending = /pending|pendiente|not resulted|in process|en proceso|cancelled/i.test(resultText);
-  const panel = clean(row.panel_en) || clean(row.panel_original) || 'Other';
-  const marker = clean(row.analyte_en) || clean(row.analyte_original) || 'Unknown marker';
+  const panel = clean(row.panel_display_en) || clean(row.panel_en) || clean(row.panel_original) || 'Other';
+  const marker = clean(row.analyte_display_en) || clean(row.analyte_en) || clean(row.analyte_original) || 'Unknown marker';
   const report = REPORTS.get(clean(row.source_id));
   return {
     id: clean(row.observation_id) || slug(`${profileId}-${date}-${marker}-${clean(row.source_id)}-${valueRaw}`),
@@ -980,18 +1006,21 @@ function normalizeLab(row: RawObservation): LabPoint | null {
     panel,
     category: canonicalCategory(panel, marker),
     marker,
-    unit: clean(row.unit_raw) || clean(row.ucum_unit),
+    unit: clean(row.unit_display) || clean(row.unit_raw) || clean(row.ucum_unit),
     valueRaw,
     value: numeric,
     resultType: clean(row.result_type),
-    refRaw: clean(row.reference_range_raw),
+    refRaw: clean(row.reference_range_display) || clean(row.reference_range_raw),
     flagRaw: normalizeFlag(row.flag_raw),
     flagStatus: normalizeFlag(row.flag_raw) && !pending ? 'active' : 'none',
-    interpretation: clean(row.interpretation_en),
-    specimen: clean(row.specimen),
+    interpretation,
+    specimen: clean(row.specimen_display_en) || clean(row.specimen),
     method: clean(row.method),
     confidence: clean(row.confidence),
     notes: clean(row.notes),
+    normalizationStatus: clean(row.normalization_status),
+    normalizationApplied: clean(row.normalization_applied),
+    normalizationWarnings: clean(row.normalization_warnings),
     pending,
     derived: /^derived|derived|ratio|index/i.test(marker) || /DERIVED/i.test(`${row.notes || ''} ${row.source_id || ''}`),
     sourceNotePath: clean(report?.source_note_path),
@@ -1117,7 +1146,7 @@ function filterLabs(rows: LabPoint[], state: UiState): LabPoint[] {
   return rows.filter((row) => {
     if (start && row.time < start) return false;
     if (state.category !== 'All categories' && row.category !== state.category) return false;
-    if (query && !`${row.marker} ${row.panel} ${row.category} ${row.valueRaw} ${row.sourceId}`.toLowerCase().includes(query)) return false;
+    if (query && !`${row.marker} ${row.panel} ${row.category} ${row.valueRaw} ${row.refRaw} ${row.normalizationApplied} ${row.normalizationWarnings} ${row.sourceId}`.toLowerCase().includes(query)) return false;
     return true;
   });
 }
@@ -1273,6 +1302,7 @@ function focusRows(rows: LabPoint[], focus: RowFocus): LabPoint[] {
   if (focus === 'resolved') return resolvedFlagRows(rows);
   if (focus === 'pending') return rows.filter((row) => row.pending);
   if (focus === 'numeric') return rows.filter((row) => row.value !== null && !row.pending);
+  if (focus === 'qa') return rows.filter((row) => row.normalizationWarnings || row.normalizationApplied);
   return rows;
 }
 
@@ -1601,7 +1631,7 @@ function persistState(state: UiState) {
 }
 
 function downloadCsv(rows: LabPoint[]) {
-  const cols = ['date', 'category', 'marker', 'valueRaw', 'unit', 'refRaw', 'flagRaw', 'flagStatus', 'resolvedByDate', 'resolvedByValue', 'sourceId'];
+  const cols = ['date', 'category', 'marker', 'valueRaw', 'unit', 'refRaw', 'flagRaw', 'flagStatus', 'resolvedByDate', 'resolvedByValue', 'normalizationStatus', 'normalizationApplied', 'normalizationWarnings', 'sourceId'];
   const body = [cols.join(',')].concat(rows.map((row) => cols.map((key) => csvEscape(String((row as any)[key] ?? ''))).join(','))).join('\n');
   const blob = new Blob([body], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);

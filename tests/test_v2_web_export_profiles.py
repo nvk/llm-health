@@ -206,3 +206,118 @@ def test_export_v2_web_filters_invalid_profile_ids_from_canonical_rows(
     assert {row["profile_id"] for row in payload["observations"]} == {"rod"}
     assert {row["profile_id"] for row in payload["wearable_daily"]} == {"rod"}
     assert "unsafe_source" not in export.data_path.read_text(encoding="utf-8")
+
+
+def test_export_v2_web_normalizes_language_units_and_adds_qa(tmp_path, monkeypatch) -> None:
+    wiki = tmp_path / "wiki"
+    output_dir = tmp_path / "site"
+    monkeypatch.setenv("LLM_HEALTH_HUB", str(tmp_path / "missing-hub"))
+
+    _write_csv(
+        wiki / "output/data/lab-observations-long.csv",
+        OBS_FIELDS,
+        [
+            {
+                "observation_id": "rod-mercury-es",
+                "profile_id": "rod",
+                "family_role": "father",
+                "observation_date": "2026-06-05",
+                "panel_original": "Metales pesados",
+                "panel_en": "Metales pesados",
+                "analyte_original": "Mercurio sangre total",
+                "analyte_en": "Mercurio sangre total",
+                "result_type": "Numeric",
+                "value_raw": "61.2",
+                "numeric_value": "61.2",
+                "unit_raw": "nmol/L",
+                "reference_range_raw": "<=19.7",
+                "flag_raw": "High",
+                "interpretation_en": "Alto",
+                "specimen": "sangre total",
+                "source_id": "rod_source_1",
+            },
+            {
+                "observation_id": "rod-mercury-pending",
+                "profile_id": "rod",
+                "family_role": "father",
+                "observation_date": "2026-06-06",
+                "panel_original": "Metales pesados",
+                "panel_en": "Metales pesados",
+                "analyte_original": "Mercurio sangre total",
+                "analyte_en": "Mercurio sangre total",
+                "result_type": "Pending",
+                "value_raw": "PENDIENTE",
+                "source_id": "rod_source_2",
+            },
+            {
+                "observation_id": "rod-bilirubin-es",
+                "profile_id": "rod",
+                "family_role": "father",
+                "observation_date": "2026-06-07",
+                "panel_original": "Perfil hepático",
+                "analyte_original": "Bilirrubina total",
+                "result_type": "Numeric",
+                "value_raw": "1.3",
+                "numeric_value": "1.3",
+                "unit_raw": "mg/dL",
+                "reference_range_raw": "Menos de 1.2",
+                "source_id": "rod_source_3",
+            },
+            {
+                "observation_id": "rod-hematocrit-ll",
+                "profile_id": "rod",
+                "family_role": "father",
+                "observation_date": "2026-06-08",
+                "panel_original": "Hemograma completo",
+                "analyte_original": "Hematocrito",
+                "result_type": "Numeric",
+                "value_raw": "0.438",
+                "numeric_value": "0.438",
+                "unit_raw": "L/L",
+                "reference_range_raw": "0.400-0.500",
+                "source_id": "rod_source_4",
+            },
+        ],
+    )
+    _write_csv(wiki / "output/data/apple-health-daily-summary.csv", DAILY_FIELDS)
+
+    export = export_v2_web(wiki, output_dir)
+    payload = _payload_from_data_js(export.data_path)
+    rows = payload["observations"]
+    by_id = {row["observation_id"]: row for row in rows}
+    mercury = by_id["rod-mercury-es"]
+    pending = by_id["rod-mercury-pending"]
+    bilirubin = by_id["rod-bilirubin-es"]
+    hematocrit = by_id["rod-hematocrit-ll"]
+
+    assert mercury["display_language"] == "en"
+    assert mercury["panel_display_en"] == "Heavy metals"
+    assert mercury["analyte_display_en"] == "Mercury"
+    assert mercury["unit_display"] == "µg/L"
+    assert mercury["numeric_value_display"] == "12.3"
+    assert mercury["value_display_en"] == "12.3 µg/L"
+    assert mercury["reference_range_display"].startswith("≤3.95 µg/L")
+    assert "source: ≤19.7 nmol/L" in mercury["reference_range_display"]
+    assert mercury["interpretation_display_en"] == "high"
+    assert mercury["specimen_display_en"] == "whole blood"
+    assert "unit converted to µg/L" in mercury["normalization_applied"]
+
+    assert pending["value_display_en"] == "pending"
+    assert pending["panel_display_en"] == "Heavy metals"
+    assert pending["analyte_display_en"] == "Mercury"
+
+    assert bilirubin["panel_display_en"] == "Liver"
+    assert bilirubin["analyte_display_en"] == "Total bilirubin"
+    assert bilirubin["reference_range_display"] == "<1.2 mg/dL"
+    assert "reference range translated to English" in bilirubin["normalization_applied"]
+
+    assert hematocrit["analyte_display_en"] == "Hematocrit"
+    assert hematocrit["unit_display"] == "%"
+    assert hematocrit["numeric_value_display"] == "43.8"
+    assert hematocrit["value_display_en"] == "43.8 %"
+
+    assert payload["export_summary"]["normalization_issues"] >= 2
+    assert any(
+        issue["kind"] == "normalization_applied"
+        for issue in payload["normalization_issues"]
+    )

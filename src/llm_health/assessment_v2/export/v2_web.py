@@ -17,6 +17,7 @@ from llm_health.assessment_v2.export.old_web import (
     _profile_context,
     _read_csv_dicts,
 )
+from llm_health.assessment_v2.normalization import normalize_observation_rows
 from llm_health.config import resolve_store_path
 from llm_health.core.models import EnrolledProfile
 from llm_health.core.privacy import validate_profile_alias
@@ -45,7 +46,9 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
     reports_csv = wiki_root / "output/data/lab-reports.csv"
     wearable_daily_csv = wiki_root / "output/data/apple-health-daily-summary.csv"
 
-    observations = _safe_profile_rows(_read_csv_dicts(observations_csv))
+    observations, normalization_issues = normalize_observation_rows(
+        _safe_profile_rows(_read_csv_dicts(observations_csv))
+    )
     reports = _merge_source_note_paths(
         _safe_profile_rows(_read_optional_csv_dicts(reports_csv)), wiki_root, output_dir
     )
@@ -60,12 +63,14 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
         "generated": date.today().isoformat(),
         "source": "canonical de-identified wiki CSV exports plus alias-only llm-health enrollments",
         "observations": observations,
+        "normalization_issues": normalization_issues,
         "reports": reports,
         "wearable_daily": wearable_daily,
         "profile_context": profile_context,
         "profiles": profiles,
         "export_summary": {
             "observations": len(observations),
+            "normalization_issues": len(normalization_issues),
             "reports": len(reports),
             "wearable_daily": len(wearable_daily),
             "profiles": [profile["profile_id"] for profile in profiles],
