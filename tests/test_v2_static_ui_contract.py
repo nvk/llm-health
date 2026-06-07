@@ -10,15 +10,21 @@ def _asset_text() -> str:
 def test_packaged_v2_static_ui_uses_review_packet_structure() -> None:
     text = _asset_text()
 
-    assert "Review → domain → evidence" in text
+    assert "Local longitudinal review" in text
+    assert "workflow-block" not in text
+    assert "flow-steps" not in text
     assert "id=\"profileState\"" in text
     assert "id=\"domainMap\"" in text
     assert "id=\"viewBrief\"" in text
+    assert "data-row-focus=\"flags\"" in text
+    assert "data-jump" in text
+    assert "data-category-jump" in text
     assert "function populateProfiles" in text
     assert "function renderDomainMap" in text
     assert "function viewBrief" in text
+    assert "function rowFocusRows" in text
     assert "Source flag rings" in text
-    assert "Pending results appear" in text
+    assert "Pending/nonnumeric rows stay in sources" in text
 
 
 def test_packaged_v2_static_ui_preserves_tags_and_privacy() -> None:

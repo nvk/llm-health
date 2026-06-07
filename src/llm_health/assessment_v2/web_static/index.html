@@ -13,23 +13,13 @@
       <div>
         <p>local health review</p>
         <h1>Assessment v2</h1>
-        <span class="brand-subtitle">Review → domain → evidence</span>
+        <span class="brand-subtitle">Local longitudinal review</span>
       </div>
     </div>
 
     <section class="sidebar-note" aria-label="Own-risk notice">
       <span class="tag qa">OWN-RISK</span>
       <p>Private, local briefing. Not diagnosis, medical advice, a prescription, or a clinician relationship.</p>
-    </section>
-
-    <section class="control-block workflow-block">
-      <label class="control-label">Workflow</label>
-      <ol class="flow-steps">
-        <li><span>1</span>Review queue</li>
-        <li><span>2</span>Domain map</li>
-        <li><span>3</span>Timeline evidence</li>
-        <li><span>4</span>Source rows</li>
-      </ol>
     </section>
 
     <section class="control-block">
@@ -54,7 +44,7 @@
     <section class="control-block">
       <label for="categorySelect" class="control-label">Domain / category</label>
       <select id="categorySelect"></select>
-      <p class="help-text">All categories shows stacked charts grouped by domain; focused domains keep the review packet smaller.</p>
+      <p class="help-text">All categories groups charts by domain.</p>
     </section>
 
     <section class="control-block">
@@ -63,7 +53,6 @@
         <button type="button" data-mode="stack" aria-pressed="false">Stack</button>
         <button type="button" data-mode="overlay" aria-pressed="false">Overlay</button>
       </div>
-      <p class="help-text">Stack keeps native units. Overlay compares timing/shape with normalized lines.</p>
     </section>
 
     <section class="control-block">
@@ -88,7 +77,7 @@
       <label><input type="checkbox" id="showWeight" checked> Weight context</label>
       <label><input type="checkbox" id="showFlags" checked> Source flag rings</label>
       <label><input type="checkbox" id="showLabels"> Exact date labels</label>
-      <p class="help-text">Pending results appear in review/source rows; they are not plotted unless the source contains a numeric value.</p>
+      <p class="help-text">Pending/nonnumeric rows stay in sources; they are not plotted.</p>
     </section>
 
     <section class="control-block">
@@ -104,8 +93,8 @@
       <div>
         <p class="eyebrow">OBSERVED · DERIVED · CONTEXT · QA</p>
         <h2>Longitudinal review board</h2>
-        <p class="lede">A review briefing system for de-identified longitudinal data: what needs attention, what changed, which domains are covered, and which source rows support it.</p>
-        <p class="own-risk-line">Experimental own-risk review layer — verify source rows and context before taking action.</p>
+        <p class="lede">Filtered labs, wearables, flags, timelines, and source rows.</p>
+        <p class="own-risk-line">Own-risk review layer — verify source rows before acting.</p>
       </div>
       <div class="top-actions">
         <div class="profile-state" id="profileState" aria-live="polite"></div>
@@ -126,7 +115,7 @@
       <div class="section-head">
         <div>
           <h3>Review queue</h3>
-          <p>Generated from filtered observations and explicit context. These are triage prompts, not diagnoses.</p>
+          <p>Filtered triage prompts. Not diagnoses.</p>
         </div>
       </div>
       <div class="review-grid" id="reviewGrid"></div>
@@ -157,7 +146,13 @@
         <div>
           <h3>Matching observations</h3>
           <p id="tableMeta">—</p>
-          <p class="help-text">Use this table to verify plotted points, source flags, reference ranges, and provenance notes before interpreting a chart.</p>
+          <p class="help-text">Verify plotted points, source flags, ranges, and provenance here.</p>
+          <div class="source-focus" id="sourceFocusControls" role="group" aria-label="Source row focus">
+            <button type="button" data-row-focus="all" aria-pressed="false">All rows</button>
+            <button type="button" data-row-focus="flags" aria-pressed="false">Flags</button>
+            <button type="button" data-row-focus="pending" aria-pressed="false">Pending</button>
+            <button type="button" data-row-focus="numeric" aria-pressed="false">Numeric</button>
+          </div>
         </div>
       </div>
       <div class="table-wrap">

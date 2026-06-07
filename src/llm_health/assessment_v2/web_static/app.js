@@ -44,6 +44,7 @@
       agg: p.get('agg') || 'observed',
       smooth: p.get('smooth') || 'none',
       section: p.get('section') || 'review',
+      rowFocus: p.get('rows') || 'all',
       search: p.get('q') || '',
       showWeight: p.get('weight') !== '0',
       showFlags: p.get('flags') !== '0',
@@ -55,6 +56,7 @@
   function persist() {
     const p = new URLSearchParams();
     ['profile','range','category','mode','section'].forEach(k => p.set(k, state[k]));
+    if (state.rowFocus !== 'all') p.set('rows', state.rowFocus);
     if (state.scale !== 'auto') p.set('scale', state.scale);
     if (state.agg !== 'observed') p.set('agg', state.agg);
     if (state.smooth !== 'none') p.set('smooth', state.smooth);
@@ -73,6 +75,19 @@
     byId('themeToggle').onclick = () => { state.theme = state.theme === 'dark' ? 'light' : 'dark'; render(); };
     byId('copyLink').onclick = async () => navigator.clipboard?.writeText(location.href);
     byId('downloadCsv').onclick = downloadCsv;
+    byId('profileState').onclick = event => {
+      const chip = event.target.closest('[data-jump]');
+      if (chip) jumpTo(chip.dataset.jump);
+    };
+    byId('domainMap').onclick = event => {
+      const card = event.target.closest('[data-category-jump]');
+      if (!card) return;
+      state.category = card.dataset.categoryJump;
+      state.section = 'timeline';
+      state.rowFocus = 'all';
+      render();
+      scrollToActiveSection();
+    };
     byId('scaleSelect').innerHTML = scaleOptions.map(([value, label]) => `<option value="${value}">${escapeHtml(label)}</option>`).join('');
     byId('scaleSelect').value = state.scale;
     byId('scaleSelect').onchange = e => { state.scale = e.target.value; render(); };
@@ -101,6 +116,9 @@
     }
     for (const btn of document.querySelectorAll('[data-section]')) {
       btn.onclick = () => { state.section = btn.dataset.section; render(); };
+    }
+    for (const btn of document.querySelectorAll('[data-row-focus]')) {
+      btn.onclick = () => { state.rowFocus = btn.dataset.rowFocus; state.section = 'sources'; render(); };
     }
     byId('categorySelect').onchange = e => { state.category = e.target.value; render(); };
   }
@@ -150,6 +168,7 @@
     syncPressed('[data-mode]', btn => btn.dataset.mode === state.mode);
     syncPressed('[data-agg]', btn => btn.dataset.agg === state.agg);
     syncPressed('[data-section]', btn => btn.dataset.section === state.section);
+    syncPressed('[data-row-focus]', btn => btn.dataset.rowFocus === state.rowFocus);
     byId('categorySelect').value = state.category;
     byId('scaleSelect').value = state.scale;
     byId('smoothSelect').value = state.smooth;
@@ -183,10 +202,12 @@
     const sourceFlags = rows.filter(r => r.flag_raw && !r.isPending).length;
     const pending = rows.filter(r => r.isPending).length;
     byId('profileState').innerHTML = [
-      tagHtml('CONTEXT', profileLabel()),
-      tagHtml('OBSERVED', `${numeric.toLocaleString()} plotted-capable`),
-      sourceFlags ? tagHtml('QA_ISSUE', `${sourceFlags} source flags`) : tagHtml('OBSERVED', 'no visible source flags'),
-      pending ? tagHtml('DATA_GAP', `${pending} pending`) : ''
+      statusChipHtml('CONTEXT', profileLabel(), 'review', 'Show the review queue for this profile'),
+      statusChipHtml('OBSERVED', `${numeric.toLocaleString()} plotted-capable`, 'timeline', 'Jump to timeline evidence'),
+      sourceFlags
+        ? statusChipHtml('QA_ISSUE', `${sourceFlags} source flags`, 'flags', 'Show flagged source rows')
+        : statusChipHtml('OBSERVED', 'no source flags', 'sources', 'Show source rows'),
+      pending ? statusChipHtml('DATA_GAP', `${pending} pending`, 'pending', 'Show pending source rows') : ''
     ].join('');
   }
 
@@ -309,7 +330,7 @@
       `${stat.pending.toLocaleString()} pending`,
       stat.latest ? `latest ${iso(stat.latest)}` : 'latest —'
     ];
-    return `<article class="domain-card ${escapeAttr(stat.status)}"><header><strong>${escapeHtml(stat.category)}</strong>${tagHtml(stat.tag, stat.label)}</header><p>${escapeHtml(body)}</p><div class="domain-meta">${details.map(d => `<span>${escapeHtml(d)}</span>`).join('')}</div></article>`;
+    return `<button type="button" class="domain-card ${escapeAttr(stat.status)}" data-category-jump="${escapeAttr(stat.category)}" title="Show ${escapeAttr(stat.category)} timelines"><header><strong>${escapeHtml(stat.category)}</strong>${tagHtml(stat.tag, stat.label)}</header><p>${escapeHtml(body)}</p><div class="domain-meta">${details.map(d => `<span>${escapeHtml(d)}</span>`).join('')}</div></button>`;
   }
 
   function viewBrief(rows, groups) {
@@ -491,9 +512,25 @@
   }
 
   function renderTable(rows) {
-    const visible = rows.slice().sort((a,b) => b.time - a.time).slice(0, 500);
-    byId('tableMeta').textContent = `Showing ${visible.length.toLocaleString()} of ${rows.length.toLocaleString()} rows for ${profileLabel()} · ${state.category} · ${state.range}`;
+    const focused = rowFocusRows(rows);
+    const visible = focused.slice().sort((a,b) => b.time - a.time).slice(0, 500);
+    const focus = rowFocusLabel();
+    byId('tableMeta').textContent = `Showing ${visible.length.toLocaleString()} of ${focused.length.toLocaleString()} ${focus} rows · ${rows.length.toLocaleString()} filtered total · ${profileLabel()} · ${state.category} · ${state.range}`;
     byId('rowsTable').innerHTML = visible.map(r => `<tr><td>${escapeHtml(r.date)}</td><td>${escapeHtml(r.panel_en)}</td><td>${escapeHtml(r.analyte_en)}</td><td class="result">${escapeHtml(r.value_raw)}</td><td>${escapeHtml(r.reference_range_raw)}</td><td>${flagCell(r)}</td><td>${sourceLink(r)}</td></tr>`).join('') || '<tr><td colspan="7">No rows.</td></tr>';
+  }
+
+  function rowFocusRows(rows) {
+    if (state.rowFocus === 'flags') return rows.filter(r => r.flag_raw && !r.isPending);
+    if (state.rowFocus === 'pending') return rows.filter(r => r.isPending);
+    if (state.rowFocus === 'numeric') return rows.filter(r => r.isNumeric);
+    return rows;
+  }
+
+  function rowFocusLabel() {
+    if (state.rowFocus === 'flags') return 'flagged';
+    if (state.rowFocus === 'pending') return 'pending';
+    if (state.rowFocus === 'numeric') return 'numeric';
+    return 'matching';
   }
 
   function sourceLink(r) {
@@ -709,6 +746,19 @@
   }
   function weightKg(r) { const v = r.num; const u = (r.unit_raw || '').toLowerCase(); return ['lb','lbs','pound','pounds'].includes(u) ? v * 0.45359237 : v; }
   function setThemeButton() { byId('themeToggle').textContent = state.theme === 'dark' ? 'Light theme' : 'Dark theme'; byId('themeToggle').setAttribute('aria-pressed', state.theme === 'dark' ? 'true' : 'false'); }
+  function jumpTo(action) {
+    if (action === 'timeline') { state.section = 'timeline'; state.rowFocus = 'all'; }
+    else if (action === 'flags') { state.section = 'sources'; state.rowFocus = 'flags'; }
+    else if (action === 'pending') { state.section = 'sources'; state.rowFocus = 'pending'; }
+    else if (action === 'sources') { state.section = 'sources'; state.rowFocus = 'all'; }
+    else { state.section = 'review'; }
+    render();
+    scrollToActiveSection();
+  }
+  function scrollToActiveSection() {
+    const target = byId(`${state.section}Section`);
+    target?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
   function syncPressed(selector, isActive) { for (const btn of document.querySelectorAll(selector)) { const active = isActive(btn); btn.classList.toggle('active', active); btn.setAttribute('aria-pressed', active ? 'true' : 'false'); } }
   function profileLabel() { return `${displayAlias(state.profile)} only`; }
   function displayAlias(id) { return String(id || '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Profile'; }
@@ -718,6 +768,7 @@
   function attentionText(r) { return `${r.date || 'undated'} · ${r.analyte_en}: ${r.value_raw || r.interpretation_en || 'pending'}${r.unit_raw ? ` ${r.unit_raw}` : ''}${r.flag_raw ? ` · source flag ${r.flag_raw}` : ''}`; }
   function compareAttention(a, b) { const flagRank = (b.flag_raw || b.isPending ? 1 : 0) - (a.flag_raw || a.isPending ? 1 : 0); return flagRank || (b.time || 0) - (a.time || 0); }
   function tagHtml(tag, label = tag) { return `<span class="tag ${tagClass(tag)}">${escapeHtml(label)}</span>`; }
+  function statusChipHtml(tag, label, jump, title) { return `<button type="button" class="tag tag-action ${tagClass(tag)}" data-jump="${escapeAttr(jump)}" title="${escapeAttr(title || '')}">${escapeHtml(label)}</button>`; }
   function seriesTagHtml(rows) {
     const tags = [];
     if (rows.some(isDerived)) tags.push(['DERIVED', 'DERIVED']); else tags.push(['OBSERVED', 'OBSERVED']);
