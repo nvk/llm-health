@@ -13,6 +13,18 @@
   --range-line: #74a68a;
   --amber: #f2b84b;
   --shadow: 0 8px 22px rgba(39, 54, 77, .10);
+  --tag-observed-bg: #e7f4ec;
+  --tag-observed-fg: #1f6f46;
+  --tag-observed-bd: #b8dac6;
+  --tag-derived-bg: #f1eafa;
+  --tag-derived-fg: #63419a;
+  --tag-derived-bd: #d6c4ef;
+  --tag-context-bg: #fff2d4;
+  --tag-context-fg: #8a5a00;
+  --tag-context-bd: #e5c06d;
+  --tag-issue-bg: #ffe8e3;
+  --tag-issue-fg: #9b332b;
+  --tag-issue-bd: #e7b0a8;
   --corner-xs: 2px;
   --corner-sm: 3px;
   --corner-md: 5px;
@@ -38,6 +50,18 @@
   --range-band: #1f3a2b;
   --range-line: #d0a24b;
   --shadow: 0 8px 24px rgba(0, 0, 0, .36);
+  --tag-observed-bg: #173527;
+  --tag-observed-fg: #8ce0ab;
+  --tag-observed-bd: #2f6d4e;
+  --tag-derived-bg: #2b2240;
+  --tag-derived-fg: #c9b4ff;
+  --tag-derived-bd: #5e4a85;
+  --tag-context-bg: #3a2b12;
+  --tag-context-fg: #ffd37a;
+  --tag-context-bd: #775b25;
+  --tag-issue-bg: #43201d;
+  --tag-issue-fg: #ffb0a5;
+  --tag-issue-bd: #8d473f;
   --paper-grain:
     radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--paper) 9%, transparent) .55px, transparent .68px),
     linear-gradient(135deg, color-mix(in srgb, var(--paper) 96%, transparent), color-mix(in srgb, var(--paper-soft) 72%, transparent));
@@ -116,14 +140,7 @@ body {
   overflow: hidden;
 }
 .hero::after {
-  content: '';
-  position: absolute;
-  inset: -7rem -5rem auto auto;
-  width: 24rem;
-  height: 24rem;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  pointer-events: none;
+  content: none;
 }
 .hero h1 { font-size: clamp(2rem, 4vw, 3.55rem); letter-spacing: -.055em; line-height: .95; }
 .hero-metrics { position: relative; z-index: 2; }
@@ -148,6 +165,9 @@ body {
 .metric-pill.bad { color: var(--flag); }
 .metric-pill.ok { color: #2f855a; }
 .metric-pill:hover { border-color: var(--accent); transform: translateY(-1px); }
+
+[data-theme='dark'] .metric-pill.warn { color: #ffd37a; }
+[data-theme='dark'] .metric-pill.ok { color: #8ce0ab; }
 
 .stat-card, .review-card, .domain-card { cursor: pointer; transition: transform .16s ease, border-color .16s ease; }
 .stat-card:hover, .review-card:hover, .domain-card:hover { transform: translateY(-2px); border-color: var(--accent); }
@@ -248,11 +268,51 @@ body {
   background-size: 10px 10px, auto;
 }
 
-.tag { font-weight: 900; letter-spacing: .04em; }
-.tag-observed { color: #2f855a; }
-.tag-derived { color: #805ad5; }
-.tag-context, .tag-wearable_context { color: #a36a00; }
-.tag-data_gap, .tag-qa_issue { color: var(--flag); }
+.tag {
+  font-weight: 900;
+  letter-spacing: .02em;
+  background: var(--tag-context-bg) !important;
+  border-color: var(--tag-context-bd) !important;
+  color: var(--tag-context-fg) !important;
+  --badge-bg: var(--tag-context-bg) !important;
+  --badge-color: var(--tag-context-fg) !important;
+  --badge-bd: 1px solid var(--tag-context-bd) !important;
+}
+.tag-observed {
+  background: var(--tag-observed-bg) !important;
+  border-color: var(--tag-observed-bd) !important;
+  color: var(--tag-observed-fg) !important;
+  --badge-bg: var(--tag-observed-bg) !important;
+  --badge-color: var(--tag-observed-fg) !important;
+  --badge-bd: 1px solid var(--tag-observed-bd) !important;
+}
+.tag-derived {
+  background: var(--tag-derived-bg) !important;
+  border-color: var(--tag-derived-bd) !important;
+  color: var(--tag-derived-fg) !important;
+  --badge-bg: var(--tag-derived-bg) !important;
+  --badge-color: var(--tag-derived-fg) !important;
+  --badge-bd: 1px solid var(--tag-derived-bd) !important;
+}
+.tag-context, .tag-wearable_context {
+  background: var(--tag-context-bg) !important;
+  border-color: var(--tag-context-bd) !important;
+  color: var(--tag-context-fg) !important;
+  --badge-bg: var(--tag-context-bg) !important;
+  --badge-color: var(--tag-context-fg) !important;
+  --badge-bd: 1px solid var(--tag-context-bd) !important;
+}
+.tag-data_gap, .tag-qa_issue {
+  background: var(--tag-issue-bg) !important;
+  border-color: var(--tag-issue-bd) !important;
+  color: var(--tag-issue-fg) !important;
+  --badge-bg: var(--tag-issue-bg) !important;
+  --badge-color: var(--tag-issue-fg) !important;
+  --badge-bd: 1px solid var(--tag-issue-bd) !important;
+}
+.tag .mantine-Badge-label {
+  color: inherit !important;
+}
 .health-shell .mantine-Badge-label {
   text-transform: none;
   letter-spacing: .018em;

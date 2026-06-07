@@ -69,6 +69,8 @@ def test_packaged_v3_static_ui_uses_framework_board() -> None:
     assert "recharts" in text.lower() or "recharts-wrapper" in text
     assert "--paper-grain" in text
     assert "--corner-lg" in text
+    assert "--tag-issue-bg" in text
+    assert "content:none" in text
     assert "QA issue" in text
     assert "Data gap" in text
     assert "Wearable context" in text

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.9 - 2026-06-07
+
+- Removed the decorative hero swoop from the Assessment board.
+- Fixed review badge contrast so status labels use placement-aware background/text colors in light and dark themes.
+
 ## 0.0.8 - 2026-06-07
 
 - Tightened the Assessment board visual system with squarer corners, lower shadows, warm paper surfaces, and subtle Basecamp-like texture.
