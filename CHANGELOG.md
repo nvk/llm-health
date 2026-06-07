@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.5 - 2026-06-07
+
+- Added `health config wiki-root <path>` so users can save the de-identified health-assessments wiki root once.
+- Added `health ui` to regenerate the Assessment v2 static dashboard into `<HUB>/v2-web/` and open it automatically.
+- Added `health ui --no-open` and `--output <dir>` for scripted refreshes and custom export locations.
+- Updated agent/plugin instructions and docs so Claude/Codex/OpenCode can guide users to the automated UI flow.
+
 ## 0.0.4 - 2026-06-07
 
 - Trimmed Assessment v2 static UI chrome by removing the non-actionable workflow rail and shortening repeated helper copy.
