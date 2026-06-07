@@ -35,6 +35,26 @@ It intentionally does **not** diagnose, prescribe, order tests, or auto-change c
 reviewable cards, tasks, and research jobs. Use is explicitly at the user's own risk; the CLI gates
 health-facing HUB commands behind an initial own-risk agreement.
 
+## Release notes
+
+Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
+
+| Version | Notes |
+|---|---|
+| **0.0.13** | Family graph: `health family`, hereditary/household tags, family risk notes, service/docs/plugin coverage. |
+| **0.0.12** | Visible operator runtime: draft/list/show/finalize/traces plus fingerprint-first audit records. |
+| **0.0.11** | Capability map, de-id preview/staging, and localhost service smoke surface. |
+| **0.0.10** | Smarter chart overlay/stack defaults: domains, flagged-first, recent movement, context groups. |
+| **0.0.9** | Assessment board polish: removed hero swoop and fixed badge contrast. |
+| **0.0.8** | Squarer Basecamp-like UI texture and readable UI tags instead of raw enum labels. |
+| **0.0.7** | Static dashboard fixed for direct `file://` open in Chrome/Safari, with regression test. |
+| **0.0.6** | React + Mantine + Recharts Assessment board with cards, timelines, tables, themes, and privacy tests. |
+| **0.0.5** | One-command `health ui` flow with saved wiki root, HUB export, open/no-open modes. |
+| **0.0.4** | Assessment v2 compactness pass: fewer decorative rails, clickable chips/cards, source-row focus. |
+| **0.0.3** | Profile/export hardening for alias-only enrollment and malformed v2 source rows. |
+| **0.0.2** | Review-board UX, dynamic profile selectors, dark amber theme, and enrolled-profile exports. |
+| **0.0.1** | Initial package: CLI/store, review/gaps/research cards, v2 bridge, agent surfaces, own-risk gate. |
+
 ## Runtime surfaces
 
 | Host | Entry point | Notes |
