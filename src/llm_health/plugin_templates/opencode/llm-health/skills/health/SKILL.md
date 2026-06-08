@@ -77,6 +77,12 @@ health ui --no-open
 health archive create
 health archive list
 health archive verify <archive.tar.gz>
+health source-vault init
+health source-vault add <file-or-folder> --wiki-root <health-assessments-topic-root>
+health source-vault add <file-or-folder> --wiki-root <health-assessments-topic-root> --copy --accept-raw-storage
+health source-vault list
+health source-audit run --profile rod --focus medium
+health source-audit report
 health enroll --alias sol --birth-year 2018 --role child
 health enroll --alias lele --birth-year 2026 --birth-month 1 --role child
 health profiles
@@ -125,6 +131,11 @@ Use `health capabilities` when you need the current command/module/privacy map i
 Use `health archive create` to create a compressed, privacy-scanned HUB snapshot for future
 reference; it is a de-identified HUB archive, not a raw-source backup. Use `--strict` when
 privacy skips should fail the run.
+Use `health source-vault` only for private raw-source audit. The manifest stores hashes and
+de-identified source IDs, never raw paths or raw filenames. `--copy --accept-raw-storage` stores
+hash-named raw blobs for future OCR/extraction review; those blobs stay local and are excluded from
+normal `health archive` snapshots. Use `health source-audit run --focus medium` after ingesting
+new results or when confidence/OCR quality is in question.
 Use `health deid preview` before staging raw text into the HUB, and `health deid apply
 --staging-only` only after confirming the redacted preview is safe. The de-id adapter stores redacted
 text and entity hashes only; it must not write raw paths, source filenames, legal names, emails, or

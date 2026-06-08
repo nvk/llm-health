@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.22** | Adds private source-vault cataloging and multipass source-audit for OCR/medium-confidence rows. |
 | **0.0.21** | Fixes archive binary scanning so sanitized DuckDB/Parquet files are included instead of false-skipped. |
 | **0.0.20** | Adds privacy-scanned `health archive` snapshots and scrubs v2 DuckDB/Parquet source-file/provider fields. |
 | **0.0.19** | Dashboard export privacy: source filenames/provider aliases are scrubbed from `data.js`. |
@@ -117,6 +118,21 @@ health doctor
 Then commands such as `health review --profile rod` and `health sync-v2 ...` use that HUB by default unless `--store` is supplied.
 
 
+
+## Source vault and source audit
+
+For private source re-audit, catalog originals by hash and run extraction/consistency checks against
+canonical rows:
+
+```sh
+health source-vault init
+health source-vault add <file-or-folder> --wiki-root <health-assessments-topic-root>
+health source-vault add <file-or-folder> --wiki-root <health-assessments-topic-root> --copy --accept-raw-storage
+health source-audit run --profile rod --focus medium
+```
+
+The vault manifest stores no raw paths or filenames. Copied raw blobs are hash-named and excluded
+from normal `health archive` snapshots. See `docs/source-vault-audit.md`.
 
 ## HUB archives
 

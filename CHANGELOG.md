@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+## 0.0.22 - 2026-06-08
+
+- Added `health source-vault` for private raw-source hashing/cataloging with optional hash-named blob copy.
+- Added `health source-audit` for medium-confidence/OCR-risk row review, multipass PDF extraction summaries, and consistency checks.
+- Kept raw-source vault data outside normal de-identified HUB archives.
+
 ## 0.0.21 - 2026-06-07
 
 - Fixed archive privacy scanning so email-looking byte sequences in binary DuckDB/Parquet files do not create false skips.

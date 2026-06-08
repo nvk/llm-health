@@ -234,6 +234,28 @@ CAPABILITIES: tuple[Capability, ...] = (
         docs=["docs/feature-map.md", "docs/recipes.md"],
     ),
     Capability(
+        capability_id="source-vault-audit",
+        name="Source vault and source audit",
+        kind="privacy",
+        command="health source-vault; health source-audit",
+        summary=(
+            "Catalog optional raw originals by hash, map them to de-identified source IDs, "
+            "and audit medium-confidence rows with multipass extraction summaries."
+        ),
+        module="llm_health.source_vault",
+        privacy=(
+            "manifest stores no raw paths or filenames; copied raw blobs are hash-named and "
+            "excluded from normal archives"
+        ),
+        dependencies=["pdftotext optional", "llm-health[source-audit] optional"],
+        status="scaffold",
+        tests=[
+            "tests/test_source_vault.py",
+            "tests/test_cli.py::CliTests::test_source_vault_and_audit_cli",
+        ],
+        docs=["docs/source-vault-audit.md"],
+    ),
+    Capability(
         capability_id="archive",
         name="Compressed HUB archives",
         kind="privacy",

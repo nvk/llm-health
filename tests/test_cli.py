@@ -416,6 +416,69 @@ class CliTests(unittest.TestCase):
             self.assertTrue((output / "assets").is_dir())
             self.assertIn("Assessment board", (output / "index.html").read_text())
 
+    def test_source_vault_and_audit_cli(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hub = root / "hub"
+            wiki = root / "wiki"
+            raw_dir = root / "raw"
+            raw_dir.mkdir()
+            raw = raw_dir / "source-a.pdf"
+            raw.write_bytes(b"fake pdf ALT 61")
+            data_dir = wiki / "output" / "data"
+            data_dir.mkdir(parents=True)
+            (data_dir / "lab-reports.csv").write_text(
+                "source_id,profile_id,family_role,provider_alias,source_title,collection_date,"
+                "report_date,language,status,source_file_alias,notes\n"
+                "src1,rod,father,provider,title,2026-01-01,2026-01-01,en,ingested,"
+                "rod/source-a.pdf,note\n",
+                encoding="utf-8",
+            )
+            (data_dir / "lab-observations-long.csv").write_text(
+                "observation_id,profile_id,family_role,observation_date,collection_date,"
+                "report_date,source_id,source_title,source_file_alias,provider_alias,"
+                "language_original,panel_original,panel_en,analyte_original,analyte_en,"
+                "loinc_code,loinc_mapping_status,result_type,value_raw,numeric_value,"
+                "comparator,unit_raw,ucum_unit,reference_range_raw,flag_raw,"
+                "interpretation_en,specimen,method,confidence,notes\n"
+                "obs1,rod,father,2026-01-01,2026-01-01,2026-01-01,src1,title,,,"
+                "en,Liver,Liver,ALT,ALT,,unmapped,Numeric,61,61,,U/L,U/L,"
+                "0-55,high,,,,medium,OCR ambiguous\n",
+                encoding="utf-8",
+            )
+
+            init = self.run_cli("init", "--accept-risk", store=str(hub))
+            self.assertEqual(init.returncode, 0, init.stderr)
+            blocked = self.run_cli("source-vault", "add", str(raw_dir), "--copy", store=str(hub))
+            self.assertEqual(blocked.returncode, 4)
+            added = self.run_cli(
+                "source-vault",
+                "add",
+                str(raw_dir),
+                "--wiki-root",
+                str(wiki),
+                "--copy",
+                "--accept-raw-storage",
+                store=str(hub),
+            )
+            self.assertEqual(added.returncode, 0, added.stderr)
+            self.assertIn("matched_to_ingested_sources: 1", added.stdout)
+            manifest = (hub / "source-vault" / "manifest.jsonl").read_text()
+            self.assertNotIn("source-a.pdf", manifest)
+
+            audit = self.run_cli(
+                "source-audit",
+                "run",
+                "--wiki-root",
+                str(wiki),
+                "--profile",
+                "rod",
+                store=str(hub),
+            )
+            self.assertEqual(audit.returncode, 0, audit.stderr)
+            self.assertIn("medium rows: 1", audit.stdout)
+            self.assertIn("Rows needing audit", audit.stdout)
+
     def test_archive_create_list_verify_and_privacy_skip(self):
         with tempfile.TemporaryDirectory() as tmp:
             init = self.run_cli("init", "--accept-risk", store=tmp)

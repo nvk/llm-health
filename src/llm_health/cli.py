@@ -58,6 +58,16 @@ from llm_health.operator_runtime import (
 from llm_health.registry import dumps_capabilities, render_capabilities
 from llm_health.research import ResearchWorkflowSpec
 from llm_health.service import LOCAL_HOSTS, render_service_routes, run_service
+from llm_health.source_vault import (
+    audit_ingested_sources,
+    catalog_sources,
+    init_source_vault,
+    latest_audit,
+    load_records,
+    render_audit,
+    render_catalog_summary,
+    render_records,
+)
 from llm_health.specialists import (
     create_specialist_notes,
     list_specialists,
@@ -239,6 +249,60 @@ def build_parser() -> argparse.ArgumentParser:
     _risk_arg(archive_verify)
     archive_verify.add_argument("path", help="Archive .tar.gz path to verify")
     archive_verify.add_argument("--json", action="store_true", help="Print machine-readable JSON")
+
+    source_vault = sub.add_parser(
+        "source-vault", help="Manage optional raw-source vault catalog and hash blobs"
+    )
+    source_vault_sub = source_vault.add_subparsers(dest="source_vault_command", required=True)
+    source_vault_init = source_vault_sub.add_parser("init", help="Initialize source vault")
+    _store_arg(source_vault_init)
+    _risk_arg(source_vault_init)
+
+    source_vault_add = source_vault_sub.add_parser(
+        "add", help="Catalog source files and optionally copy raw blobs by hash"
+    )
+    _store_arg(source_vault_add)
+    _risk_arg(source_vault_add)
+    source_vault_add.add_argument("inputs", nargs="+", help="Source file/folder inputs")
+    source_vault_add.add_argument("--wiki-root", help="Map raw files to ingested source IDs")
+    source_vault_add.add_argument("--profile", help="Alias for unmatched files")
+    source_vault_add.add_argument("--copy", action="store_true", help="Copy raw blobs into vault")
+    source_vault_add.add_argument(
+        "--accept-raw-storage",
+        action="store_true",
+        help="Required with --copy; raw blobs stay private and are excluded from normal archives",
+    )
+    source_vault_add.add_argument("--json", action="store_true", help="Print JSON summary")
+
+    source_vault_list = source_vault_sub.add_parser("list", help="List source-vault records")
+    _store_arg(source_vault_list)
+    _risk_arg(source_vault_list)
+    source_vault_list.add_argument("--json", action="store_true", help="Print JSON records")
+
+    source_audit = sub.add_parser(
+        "source-audit", help="Audit ingested rows against source vault and extraction checks"
+    )
+    source_audit_sub = source_audit.add_subparsers(dest="source_audit_command", required=True)
+    source_audit_run = source_audit_sub.add_parser("run", help="Run source/row audit")
+    _store_arg(source_audit_run)
+    _risk_arg(source_audit_run)
+    source_audit_run.add_argument("--wiki-root", help="Override health-assessments wiki root")
+    source_audit_run.add_argument("--profile", help="Optional profile alias")
+    source_audit_run.add_argument(
+        "--focus", choices=["medium", "all", "missing"], default="medium"
+    )
+    source_audit_run.add_argument(
+        "--no-extract", action="store_true", help="Skip PDF extraction summaries"
+    )
+    source_audit_run.add_argument("--no-persist", action="store_true", help="Print only")
+    source_audit_run.add_argument("--json", action="store_true", help="Print JSON audit")
+
+    source_audit_report = source_audit_sub.add_parser(
+        "report", help="Show latest persisted source audit"
+    )
+    _store_arg(source_audit_report)
+    _risk_arg(source_audit_report)
+    source_audit_report.add_argument("--json", action="store_true", help="Print JSON audit")
 
     agreement = sub.add_parser("agreement", help="Show or accept the own-risk agreement")
     _store_arg(agreement)
@@ -860,6 +924,118 @@ def cmd_archive(args: argparse.Namespace) -> int:
         return 0
 
     raise ValueError(f"unknown archive command: {args.archive_command}")
+
+
+def cmd_source_vault(args: argparse.Namespace) -> int:
+    store = _private_store_from_args(args)
+    store.init()
+
+    if args.source_vault_command == "init":
+        path = init_source_vault(store.root)
+        print("Initialized source vault")
+        print(f"vault: {path}")
+        print("privacy: raw paths and filenames are not stored in the manifest")
+        print("archive: source-vault is excluded from normal de-identified HUB archives")
+        return 0
+
+    if args.source_vault_command == "add":
+        if args.copy and not args.accept_raw_storage:
+            print(
+                "refusing raw blob copy without --accept-raw-storage; "
+                "use catalog-only mode or explicitly accept private raw storage",
+                file=sys.stderr,
+            )
+            return 4
+        wiki_root = resolve_wiki_root(args.wiki_root)
+        inputs = [Path(item) for item in args.inputs]
+        summary = catalog_sources(
+            store.root,
+            inputs,
+            wiki_root=wiki_root,
+            profile_id=args.profile,
+            copy_raw=args.copy,
+        )
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "scanned_files": summary.scanned_files,
+                        "cataloged": summary.cataloged,
+                        "copied": summary.copied,
+                        "matched": summary.matched,
+                        "skipped": summary.skipped,
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 0
+        print(render_catalog_summary(summary))
+        return 0
+
+    if args.source_vault_command == "list":
+        records = load_records(store.root)
+        if args.json:
+            print(json.dumps([record.to_dict() for record in records], indent=2, sort_keys=True))
+            return 0
+        print(render_records(records))
+        return 0
+
+    raise ValueError(f"unknown source-vault command: {args.source_vault_command}")
+
+
+def cmd_source_audit(args: argparse.Namespace) -> int:
+    store = _private_store_from_args(args)
+    store.init()
+
+    if args.source_audit_command == "run":
+        wiki_root = resolve_wiki_root(args.wiki_root)
+        if wiki_root is None:
+            print(
+                "wiki root not configured. Run `health config wiki-root <wiki-root>` "
+                "or pass `health source-audit run --wiki-root <path>`.",
+                file=sys.stderr,
+            )
+            return 4
+        result = audit_ingested_sources(
+            store.root,
+            wiki_root,
+            profile_id=args.profile,
+            focus=args.focus,
+            extract=not args.no_extract,
+            persist=not args.no_persist,
+        )
+        if args.json:
+            print(json.dumps(result.to_dict(), indent=2, sort_keys=True))
+            return 0
+        print(render_audit(result))
+        return 0
+
+    if args.source_audit_command == "report":
+        report = latest_audit(store.root)
+        if report is None:
+            print("No source audit report found.")
+            return 0
+        if args.json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+            return 0
+        result = _source_audit_result_from_payload(report)
+        print(render_audit(result))
+        return 0
+
+    raise ValueError(f"unknown source-audit command: {args.source_audit_command}")
+
+
+def _source_audit_result_from_payload(payload: dict[str, object]):
+    from llm_health.source_vault import SourceAuditResult
+
+    data = dict(payload)
+    audit_path = data.get("audit_path")
+    if isinstance(audit_path, str) and audit_path:
+        data["audit_path"] = Path(audit_path)
+    else:
+        data["audit_path"] = None
+    return SourceAuditResult(**data)
 
 
 def cmd_ingest_note(args: argparse.Namespace) -> int:
@@ -1493,6 +1669,8 @@ def main(argv: list[str] | None = None) -> int:
         "config": cmd_config,
         "ui": cmd_ui,
         "archive": cmd_archive,
+        "source-vault": cmd_source_vault,
+        "source-audit": cmd_source_audit,
         "agreement": cmd_agreement,
         "ingest-note": cmd_ingest_note,
         "sync-v2": cmd_sync_v2,
