@@ -271,6 +271,15 @@ body {
     var(--paper-soft);
   background-size: 10px 10px, auto;
 }
+.context-mini {
+  padding: .85rem .95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--corner-md);
+  background:
+    var(--field-grain),
+    color-mix(in srgb, var(--paper-soft) 94%, transparent);
+  background-size: 10px 10px, auto;
+}
 
 .tag {
   font-weight: 900;
@@ -313,6 +322,17 @@ body {
   --badge-bg: var(--tag-issue-bg) !important;
   --badge-color: var(--tag-issue-fg) !important;
   --badge-bd: 1px solid var(--tag-issue-bd) !important;
+}
+.tag-specialist_note,
+.tag-family_history,
+.tag-hereditary_risk,
+.tag-family_pattern {
+  background: var(--tag-context-bg) !important;
+  border-color: var(--tag-context-bd) !important;
+  color: var(--tag-context-fg) !important;
+  --badge-bg: var(--tag-context-bg) !important;
+  --badge-color: var(--tag-context-fg) !important;
+  --badge-bd: 1px solid var(--tag-context-bd) !important;
 }
 .tag .mantine-Badge-label {
   color: inherit !important;

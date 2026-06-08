@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.0.23 - 2026-06-08
+
+- Assessment board now shows context-only profiles, including context notes,
+  specialist notes, hereditary-risk notes, and private source-vault counts when
+  no numeric lab/wearable rows exist yet.
+
 ## 0.0.22 - 2026-06-08
 
 - Added `health source-vault` for private raw-source hashing/cataloging with optional hash-named blob copy.

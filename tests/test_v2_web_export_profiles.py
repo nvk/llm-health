@@ -190,6 +190,78 @@ def test_export_v2_web_skips_unsafe_or_invalid_hub_profiles(tmp_path, monkeypatc
     assert "raw.pdf" not in data_js
 
 
+def test_export_v2_web_includes_context_only_profiles(tmp_path, monkeypatch) -> None:
+    wiki = tmp_path / "wiki"
+    output_dir = tmp_path / "site"
+    hub = tmp_path / "hub"
+    hub.mkdir()
+    (hub / "profiles.jsonl").write_text(
+        json.dumps({"profile_id": "eva", "birth_year": 1949, "role": "adult"}) + "\n",
+        encoding="utf-8",
+    )
+    (hub / "context_notes.jsonl").write_text(
+        json.dumps(
+            {
+                "profile_id": "eva",
+                "subject": "CAA context",
+                "status": "source-reviewed",
+                "note": "Context note from scanned raw-file.pdf should not leak a filename.",
+                "observed_on": "2026-04-27",
+                "tags": ["CONTEXT", "QA_ISSUE"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (hub / "specialist_notes.jsonl").write_text(
+        json.dumps(
+            {
+                "profile_id": "eva",
+                "specialist_id": "neuro_mood_cognition",
+                "title": "Neuro context",
+                "summary": "Use as context, not a numeric lab point.",
+                "created_at": "2026-06-08T12:00:00+00:00",
+                "tags": ["SPECIALIST_NOTE", "INFERENCE"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (hub / "source-vault").mkdir()
+    (hub / "source-vault" / "manifest.jsonl").write_text(
+        json.dumps(
+            {
+                "profile_id": "eva",
+                "source_type": "pdf",
+                "copied": True,
+                "match_status": "hash_only",
+                "source_hash": "abc123",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("LLM_HEALTH_HUB", str(hub))
+
+    _write_csv(wiki / "output/data/lab-observations-long.csv", OBS_FIELDS)
+    _write_csv(wiki / "output/data/apple-health-daily-summary.csv", DAILY_FIELDS)
+
+    export = export_v2_web(wiki, output_dir)
+    payload = _payload_from_data_js(export.data_path)
+
+    assert "eva" in payload["export_summary"]["profiles"]
+    eva_context = payload["profile_context"]["eva"]
+    assert eva_context["contextNotes"][0]["title"] == "CAA context"
+    assert "raw-file.pdf" not in eva_context["contextNotes"][0]["summary"]
+    assert eva_context["specialistNotes"][0]["title"] == "Neuro context"
+    assert eva_context["sourceVault"]["count"] == 1
+    assert eva_context["sourceVault"]["copied"] == 1
+    assert eva_context["sourceVault"]["unmatched"] == 1
+    data_js = export.data_path.read_text(encoding="utf-8")
+    assert ".pdf" not in data_js.lower()
+    assert "/Users/" not in data_js
+
+
 def test_export_v2_web_filters_invalid_profile_ids_from_canonical_rows(
     tmp_path, monkeypatch
 ) -> None:

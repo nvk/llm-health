@@ -81,6 +81,29 @@ type ProfilePayload = {
   tags?: string[];
 };
 
+type ProfileArtifact = {
+  kind?: string;
+  date?: string;
+  title?: string;
+  status?: string;
+  summary?: string;
+  tags?: string[];
+};
+
+type SourceVaultSummary = {
+  count?: number;
+  copied?: number;
+  unmatched?: number;
+  types?: Record<string, number>;
+};
+
+type ProfileContextPayload = Record<string, unknown> & {
+  contextNotes?: ProfileArtifact[];
+  specialistNotes?: ProfileArtifact[];
+  hereditaryRisks?: ProfileArtifact[];
+  sourceVault?: SourceVaultSummary;
+};
+
 type HealthPayload = {
   generated?: string;
   source?: string;
@@ -247,6 +270,10 @@ const TAG_LABELS: Record<string, string> = {
   INFERENCE: 'Inference',
   DATA_GAP: 'Data gap',
   QA_ISSUE: 'QA issue',
+  SPECIALIST_NOTE: 'Specialist note',
+  FAMILY_HISTORY: 'Family history',
+  HEREDITARY_RISK: 'Hereditary risk',
+  FAMILY_PATTERN: 'Family pattern',
 };
 
 function App() {
@@ -271,6 +298,7 @@ function App() {
     [labRows, state.profile],
   );
   const filteredRows = useMemo(() => filterLabs(allProfileRows, state), [allProfileRows, state]);
+  const profileContext = useMemo(() => currentProfileContext(state.profile), [state.profile]);
   const contextSeries = useMemo(() => buildContextSeries(wearableRows, labRows, state), [wearableRows, labRows, state]);
   const labSeries = useMemo(() => buildLabSeries(filteredRows), [filteredRows]);
   const categories = useMemo(() => buildCategoryOptions(allProfileRows), [allProfileRows]);
@@ -415,6 +443,7 @@ function App() {
               allRows={allProfileRows}
               series={activeSeries}
               profileOptions={profileOptions}
+              profileContext={profileContext}
               setState={setState}
             />
 
@@ -422,6 +451,7 @@ function App() {
               rows={filteredRows}
               series={activeSeries}
               state={state}
+              profileContext={profileContext}
               setState={setState}
             />
 
@@ -439,6 +469,7 @@ function App() {
                   series={activeSeries}
                   groups={visibleCategories}
                   state={state}
+                  profileContext={profileContext}
                   setState={setState}
                 />
               </Tabs.Panel>
@@ -471,12 +502,13 @@ function ControlLabel({ label }: { label: string }) {
   return <Text size="xs" tt="uppercase" fw={800} c="dimmed" lts={1.3} mb={-10}>{label}</Text>;
 }
 
-function Header({ state, rows, allRows, series, profileOptions, setState }: {
+function Header({ state, rows, allRows, series, profileOptions, profileContext, setState }: {
   state: UiState;
   rows: LabPoint[];
   allRows: LabPoint[];
   series: Series[];
   profileOptions: ComboboxItem[];
+  profileContext: ProfileContextPayload;
   setState: React.Dispatch<React.SetStateAction<UiState>>;
 }) {
   const profile = profileOptions.find((option) => option.value === state.profile)?.label || displayAlias(state.profile);
@@ -487,6 +519,8 @@ function Header({ state, rows, allRows, series, profileOptions, setState }: {
   const pending = activePendingRows(rows).length;
   const qa = rows.filter((row) => row.normalizationWarnings || row.normalizationApplied).length;
   const qaWarnings = rows.filter((row) => row.normalizationWarnings).length;
+  const contextCount = profileArtifactCount(profileContext);
+  const sourceVaultCount = sourceVaultCountFor(profileContext);
   const themeToggle = () => setState((current) => ({ ...current, theme: current.theme === 'dark' ? 'light' : 'dark' }));
   return (
     <Paper className="hero" p="xl" radius="xl">
@@ -520,6 +554,8 @@ function Header({ state, rows, allRows, series, profileOptions, setState }: {
         {resolved ? <MetricPill label={`${resolved.toLocaleString()} resolved`} icon={<IconTimeline size={15} />} tone="ok" onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: 'resolved' }))} /> : null}
         <MetricPill label={`${pending.toLocaleString()} pending`} icon={<IconAlertTriangle size={15} />} tone={pending ? 'bad' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: pending ? 'pending' : 'all' }))} />
         {qa ? <MetricPill label={`${qa.toLocaleString()} normalized`} icon={<IconDatabase size={15} />} tone={qaWarnings ? 'warn' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: 'qa' }))} /> : null}
+        {contextCount ? <MetricPill label={`${contextCount.toLocaleString()} context notes`} icon={<IconClipboardList size={15} />} tone="warn" onClick={() => setState((current) => ({ ...current, section: 'review' }))} /> : null}
+        {sourceVaultCount ? <MetricPill label={`${sourceVaultCount.toLocaleString()} vaulted sources`} icon={<IconDatabase size={15} />} tone="warn" onClick={() => setState((current) => ({ ...current, section: 'review' }))} /> : null}
         <MetricPill label={`latest ${latest || totalLatest || '—'}`} icon={<IconTimeline size={15} />} />
       </Group>
     </Paper>
@@ -530,10 +566,11 @@ function MetricPill({ label, icon, tone = 'default', onClick }: { label: string;
   return <button type="button" className={`metric-pill ${tone}`} onClick={onClick}>{icon}<span>{label}</span></button>;
 }
 
-function SummaryGrid({ rows, series, state, setState }: {
+function SummaryGrid({ rows, series, state, profileContext, setState }: {
   rows: LabPoint[];
   series: Series[];
   state: UiState;
+  profileContext: ProfileContextPayload;
   setState: React.Dispatch<React.SetStateAction<UiState>>;
 }) {
   const numeric = rows.filter((row) => row.value !== null).length;
@@ -541,8 +578,11 @@ function SummaryGrid({ rows, series, state, setState }: {
   const resolved = resolvedFlagRows(rows).length;
   const pending = activePendingRows(rows).length;
   const derived = rows.filter((row) => row.derived).length;
+  const contextCount = profileArtifactCount(profileContext);
+  const vaulted = sourceVaultCountFor(profileContext);
   const cards = [
     { title: 'Evidence points', value: numeric.toLocaleString(), note: `${series.length} plotted series`, icon: IconChartDots3, section: 'timeline' as SectionId },
+    ...(contextCount || vaulted ? [{ title: 'Context packet', value: contextCount.toLocaleString(), note: vaulted ? `${vaulted} vaulted source(s)` : 'Records and notes, not chart dots', icon: IconClipboardList, section: 'review' as SectionId }] : []),
     { title: 'Active flags', value: flagged.toLocaleString(), note: flagged ? 'Click to audit' : resolved ? `${resolved} resolved by later tests` : 'None in filter', icon: IconFlag, section: 'sources' as SectionId, focus: flagged ? 'flags' as RowFocus : resolved ? 'resolved' as RowFocus : 'all' as RowFocus },
     { title: 'Pending rows', value: pending.toLocaleString(), note: 'Never plotted as dots', icon: IconAlertTriangle, section: 'sources' as SectionId, focus: 'pending' as RowFocus },
     { title: 'Derived rows', value: derived.toLocaleString(), note: 'Visible as Derived tags', icon: IconActivity, section: 'sources' as SectionId },
@@ -568,12 +608,13 @@ function SummaryGrid({ rows, series, state, setState }: {
   );
 }
 
-function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
+function ReviewBoard({ rows, allRows, series, groups, state, profileContext, setState }: {
   rows: LabPoint[];
   allRows: LabPoint[];
   series: Series[];
   groups: Map<string, Series[]>;
   state: UiState;
+  profileContext: ProfileContextPayload;
   setState: React.Dispatch<React.SetStateAction<UiState>>;
 }) {
   const flagged = activeFlagRows(rows);
@@ -586,6 +627,8 @@ function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
   const recent = [...rows].sort((a, b) => b.time - a.time).slice(0, 8);
   const rowsByCategory = countBy(allRows, (row) => row.category);
   const domainCards = [...groups.entries()].map(([category, list]) => ({ category, count: list.length, flags: list.reduce((sum, s) => sum + flagCount(s), 0), resolved: list.reduce((sum, s) => sum + resolvedFlagCount(s), 0) }));
+  const contextArtifacts = profileArtifacts(profileContext);
+  const sourceVault = profileContext.sourceVault;
 
   return (
     <Stack gap="lg">
@@ -620,6 +663,40 @@ function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
         />
       </SimpleGrid>
 
+      {(contextArtifacts.length || sourceVault?.count) ? (
+        <Paper p="lg" radius="xl" className="board-card context-card">
+          <Group justify="space-between" mb="md">
+            <div>
+              <Title order={3}>Profile context</Title>
+              <Text size="sm" c="dimmed">
+                Records, family context, source-vault status, and specialist notes. These are not plotted as numeric dots.
+              </Text>
+            </div>
+            <Group gap="xs">
+              {contextArtifacts.length ? <Badge color="yellow" variant="light">{contextArtifacts.length} notes</Badge> : null}
+              {sourceVault?.count ? <Badge color="gray" variant="light">{sourceVault.count} vaulted sources</Badge> : null}
+            </Group>
+          </Group>
+          {sourceVault?.count ? (
+            <Group className="mini-row" justify="space-between" mb="sm" wrap="nowrap">
+              <div>
+                <Text fw={900}>Private source vault</Text>
+                <Text size="xs" c="dimmed">Raw files are hash-named locally; original filenames/paths are not shown here.</Text>
+              </div>
+              <Group gap="xs" wrap="nowrap">
+                <Badge variant="light">{sourceVault.count} sources</Badge>
+                {sourceVault.copied ? <Badge color="green" variant="light">{sourceVault.copied} copied</Badge> : null}
+                {sourceVault.unmatched ? <Badge color="orange" variant="light">{sourceVault.unmatched} unmatched</Badge> : null}
+              </Group>
+            </Group>
+          ) : null}
+          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="sm">
+            {contextArtifacts.slice(0, 12).map((artifact, index) => <ContextMiniCard key={`${artifact.kind}-${artifact.title}-${artifact.date}-${index}`} artifact={artifact} />)}
+          </SimpleGrid>
+          {contextArtifacts.length > 12 ? <Text size="xs" c="dimmed" mt="sm">{contextArtifacts.length - 12} more context item(s) hidden in this compact board.</Text> : null}
+        </Paper>
+      ) : null}
+
       <Paper p="lg" radius="xl" className="board-card">
         <Group justify="space-between" mb="md">
           <div>
@@ -638,6 +715,12 @@ function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
               <Text size="sm" c="dimmed">{rowsByCategory.get(domain.category) || 0} observations · {domain.flags} active · {domain.resolved} resolved</Text>
             </button>
           ))}
+          {!domainCards.length ? (
+            <div className="domain-card">
+              <Text fw={800}>No numeric lab domains yet</Text>
+              <Text size="sm" c="dimmed">This profile currently has context/source records but no chartable observations in the canonical dataset.</Text>
+            </div>
+          ) : null}
         </SimpleGrid>
       </Paper>
 
@@ -649,6 +732,21 @@ function ReviewBoard({ rows, allRows, series, groups, state, setState }: {
         </Stack>
       </Paper>
     </Stack>
+  );
+}
+
+function ContextMiniCard({ artifact }: { artifact: ProfileArtifact }) {
+  const tag = primaryTag(artifact.tags);
+  return (
+    <div className="context-mini">
+      <Group justify="space-between" align="flex-start" mb={4}>
+        <Badge size="xs" className={`tag tag-${tag.toLowerCase()}`} data-tag={tag} title={tag}>{tagLabel(tag)}</Badge>
+        <Text size="xs" c="dimmed">{artifact.date || '—'}</Text>
+      </Group>
+      <Text fw={900}>{artifact.title || artifact.kind || 'Context'}</Text>
+      {artifact.status ? <Text size="xs" c="dimmed">{artifact.status}</Text> : null}
+      {artifact.summary ? <Text size="sm" lineClamp={3}>{artifact.summary}</Text> : null}
+    </div>
   );
 }
 
@@ -1566,6 +1664,57 @@ function buildProfiles(labRows: LabPoint[], wearableRows: WearablePoint[]): Comb
   Object.keys(DATA.profile_context || {}).forEach((id) => ids.add(id));
   if (!ids.size) ['rod', 'cara'].forEach((id) => ids.add(id));
   return [...ids].filter(isSafeAlias).sort((a, b) => profileRank(a) - profileRank(b) || a.localeCompare(b)).map((id) => ({ value: id, label: displayAlias(id) }));
+}
+
+function currentProfileContext(profileId: string): ProfileContextPayload {
+  const context = DATA.profile_context?.[profileId];
+  return (context && typeof context === 'object' ? context : {}) as ProfileContextPayload;
+}
+
+function profileArtifacts(context: ProfileContextPayload): ProfileArtifact[] {
+  const artifacts = [
+    ...safeArtifacts(context.contextNotes),
+    ...safeArtifacts(context.hereditaryRisks),
+    ...safeArtifacts(context.specialistNotes),
+  ];
+  return artifacts.sort((a, b) => clean(b.date).localeCompare(clean(a.date)) || artifactRank(a) - artifactRank(b));
+}
+
+function safeArtifacts(value: unknown): ProfileArtifact[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is ProfileArtifact => !!item && typeof item === 'object')
+    .map((item) => ({
+      kind: clean(item.kind),
+      date: clean(item.date),
+      title: clean(item.title),
+      status: clean(item.status),
+      summary: clean(item.summary),
+      tags: Array.isArray(item.tags) ? item.tags.map(clean).filter(Boolean) : [],
+    }));
+}
+
+function artifactRank(artifact: ProfileArtifact): number {
+  const kind = clean(artifact.kind).toLowerCase();
+  if (kind === 'context') return 0;
+  if (kind === 'hereditary') return 1;
+  if (kind === 'specialist') return 2;
+  return 5;
+}
+
+function profileArtifactCount(context: ProfileContextPayload): number {
+  return profileArtifacts(context).length;
+}
+
+function sourceVaultCountFor(context: ProfileContextPayload): number {
+  const count = Number(context.sourceVault?.count || 0);
+  return Number.isFinite(count) ? count : 0;
+}
+
+function primaryTag(tags: string[] | undefined): string {
+  const ordered = ['QA_ISSUE', 'DATA_GAP', 'HEREDITARY_RISK', 'FAMILY_HISTORY', 'SPECIALIST_NOTE', 'INFERENCE', 'CONTEXT', 'OBSERVED'];
+  const safe = new Set((tags || []).map(clean).filter(Boolean));
+  return ordered.find((tag) => safe.has(tag)) || [...safe][0] || 'CONTEXT';
 }
 
 function buildCategoryOptions(rows: LabPoint[]): ComboboxItem[] {

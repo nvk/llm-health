@@ -21,7 +21,7 @@ from llm_health.assessment_v2.export.old_web import (
 from llm_health.assessment_v2.normalization import normalize_observation_rows
 from llm_health.config import resolve_store_path
 from llm_health.core.models import EnrolledProfile
-from llm_health.core.privacy import validate_profile_alias
+from llm_health.core.privacy import PrivacyError, assert_safe_payload, validate_profile_alias
 
 
 @dataclass(frozen=True)
@@ -57,6 +57,7 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
     reports = _scrub_private_source_fields(reports)
     wearable_daily = _safe_profile_rows(_read_optional_csv_dicts(wearable_daily_csv))
     profile_context = _profile_context(observations)
+    _merge_local_health_context(profile_context)
     profiles = _profile_payloads(observations, wearable_daily, profile_context)
     for profile in profiles:
         profile_context.setdefault(profile["profile_id"], {})
@@ -261,6 +262,194 @@ def _enrolled_profiles_from_hub() -> list[dict[str, Any]]:
             }
         )
     return profiles
+
+
+def _merge_local_health_context(profile_context: dict[str, Any]) -> None:
+    """Merge alias-only llm-health HUB artifacts into the dashboard context.
+
+    The Assessment board is primarily a longitudinal lab/wearable chart, but new
+    family profiles often start with records, self-reports, specialist notes, or
+    raw-source-vault catalog entries before any numeric lab rows exist.  Exposing
+    a small, privacy-scanned artifact summary keeps those profiles from looking
+    empty while preserving the rule that raw source names/paths never enter
+    ``data.js``.
+    """
+
+    context_notes = _read_hub_jsonl("context_notes.jsonl")
+    specialist_notes = _read_hub_jsonl("specialist_notes.jsonl")
+    hereditary_risks = _read_hub_jsonl("hereditary_risk_notes.jsonl")
+    source_vault_rows = _read_source_vault_manifest()
+
+    for row in context_notes:
+        profile = _safe_alias(row.get("profile_id"))
+        if not profile:
+            continue
+        _append_profile_artifact(
+            profile_context,
+            profile,
+            "contextNotes",
+            {
+                "kind": "context",
+                "date": _date_part(row.get("observed_on") or row.get("created_at")),
+                "title": _safe_artifact_text(row.get("subject")),
+                "status": _safe_artifact_text(row.get("status")),
+                "summary": _safe_artifact_text(row.get("note")),
+                "tags": _safe_tags(row.get("tags")) or ["CONTEXT"],
+            },
+        )
+
+    for row in specialist_notes:
+        profile = _safe_alias(row.get("profile_id"))
+        if not profile:
+            continue
+        _append_profile_artifact(
+            profile_context,
+            profile,
+            "specialistNotes",
+            {
+                "kind": "specialist",
+                "date": _date_part(row.get("created_at")),
+                "title": _safe_artifact_text(row.get("title")),
+                "status": _safe_artifact_text(row.get("specialist_id")),
+                "summary": _safe_artifact_text(row.get("summary")),
+                "tags": _safe_tags(row.get("tags")) or ["SPECIALIST_NOTE", "INFERENCE"],
+            },
+        )
+
+    for row in hereditary_risks:
+        profile = _safe_alias(row.get("profile_id"))
+        if not profile:
+            continue
+        _append_profile_artifact(
+            profile_context,
+            profile,
+            "hereditaryRisks",
+            {
+                "kind": "hereditary",
+                "date": _date_part(row.get("created_at")),
+                "title": _safe_artifact_text(row.get("title")),
+                "status": f"priority {float(row.get('priority') or 0):.2f}",
+                "summary": _safe_artifact_text(row.get("summary")),
+                "tags": _safe_tags(row.get("tags")) or ["FAMILY_HISTORY", "INFERENCE"],
+            },
+        )
+
+    source_summary: dict[str, dict[str, Any]] = {}
+    for row in source_vault_rows:
+        profile = _safe_alias(row.get("profile_id"))
+        if not profile:
+            continue
+        summary = source_summary.setdefault(
+            profile,
+            {"count": 0, "copied": 0, "unmatched": 0, "types": {}},
+        )
+        summary["count"] += 1
+        if row.get("copied"):
+            summary["copied"] += 1
+        if row.get("match_status") in {"hash_only", "unmatched", None, ""}:
+            summary["unmatched"] += 1
+        source_type = _safe_artifact_text(row.get("source_type")) or "source"
+        summary["types"][source_type] = summary["types"].get(source_type, 0) + 1
+
+    for profile, summary in source_summary.items():
+        context = profile_context.setdefault(profile, {})
+        if _artifact_is_safe(summary):
+            context["sourceVault"] = summary
+
+
+def _read_hub_jsonl(filename: str) -> list[dict[str, Any]]:
+    try:
+        store_path = resolve_store_path()
+    except Exception:
+        return []
+    path = store_path / filename
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def _read_source_vault_manifest() -> list[dict[str, Any]]:
+    try:
+        store_path = resolve_store_path()
+    except Exception:
+        return []
+    path = store_path / "source-vault" / "manifest.jsonl"
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def _safe_alias(value: Any) -> str | None:
+    try:
+        return validate_profile_alias(str(value or ""))
+    except ValueError:
+        return None
+
+
+def _append_profile_artifact(
+    profile_context: dict[str, Any],
+    profile: str,
+    key: str,
+    artifact: dict[str, Any],
+) -> None:
+    if not _artifact_is_safe(artifact):
+        return
+    context = profile_context.setdefault(profile, {})
+    bucket = context.setdefault(key, [])
+    if isinstance(bucket, list):
+        bucket.append(artifact)
+
+
+def _artifact_is_safe(artifact: dict[str, Any]) -> bool:
+    try:
+        assert_safe_payload(artifact)
+    except PrivacyError:
+        return False
+    return True
+
+
+def _safe_artifact_text(value: Any) -> str:
+    text = _scrub_raw_source_text(str(value or "")).strip()
+    text = re.sub(r"/Users/[^\s]+", "[source-path]", text, flags=re.IGNORECASE)
+    text = re.sub(r"\\Users\\[^\s]+", "[source-path]", text, flags=re.IGNORECASE)
+    text = re.sub(r"Mobile Documents", "[source-path]", text, flags=re.IGNORECASE)
+    return text
+
+
+def _safe_tags(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    tags: list[str] = []
+    for item in value:
+        tag = _safe_artifact_text(item).strip()
+        if tag and re.fullmatch(r"[A-Z0-9_ -]{2,40}", tag):
+            tags.append(tag)
+    return tags[:8]
+
+
+def _date_part(value: Any) -> str:
+    text = _safe_artifact_text(value)
+    return text[:10] if text else ""
 
 
 def _read_optional_csv_dicts(path: Path) -> list[dict[str, str]]:
