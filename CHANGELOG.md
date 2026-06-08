@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.0.26 - 2026-06-08
+
+- Added a copyable Assessment Profile interview modal with baseline intake, follow-up gap, and family-history questionnaire drafts for email/chat outreach.
+- Interview drafts are generated from alias-only profile coverage, context, diagnostic gaps, family-history clues, and pending/flagged review state.
+
 ## 0.0.25 - 2026-06-08
 
 - Added `health report` for dependency-free, alias-only PDF exports with separate

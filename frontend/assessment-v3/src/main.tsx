@@ -16,6 +16,7 @@ import {
   Group,
   MantineProvider,
   MultiSelect,
+  Modal,
   Paper,
   ScrollArea,
   SegmentedControl,
@@ -25,6 +26,7 @@ import {
   Table,
   Tabs,
   Text,
+  Textarea,
   TextInput,
   ThemeIcon,
   Title,
@@ -40,6 +42,7 @@ import {
   IconDownload,
   IconExternalLink,
   IconFlag,
+  IconMail,
   IconMoon,
   IconSearch,
   IconSun,
@@ -68,6 +71,7 @@ type RowFocus = 'all' | 'flags' | 'resolved' | 'pending' | 'numeric' | 'qa';
 type OverlayPreset = 'smart' | 'current' | 'flagged' | 'recent' | 'core' | 'context';
 type FlagStatus = 'none' | 'active' | 'resolved';
 type PendingStatus = 'none' | 'active' | 'superseded';
+type InterviewMode = 'baseline' | 'followup' | 'family-history';
 
 type RawObservation = Record<string, string | undefined>;
 type RawWearable = Record<string, string | undefined>;
@@ -630,8 +634,25 @@ function PatientProfileBoard({ profileId, profileOptions, profileContext, rows, 
   const birth = profileBirthLabel(profile);
   const age = approximateAge(profile);
   const showAllProfileRows = { range: 'all' as TimeRange, category: 'All categories' };
+  const [interviewOpen, setInterviewOpen] = useState(false);
+  const [interviewMode, setInterviewMode] = useState<InterviewMode>('baseline');
+  const [copiedInterview, setCopiedInterview] = useState(false);
+  const interviewText = useMemo(() => buildInterviewText({
+    mode: interviewMode,
+    profileId,
+    profile,
+    rows,
+    wearableRows,
+    profileContext,
+  }), [interviewMode, profileId, profile, rows, wearableRows, profileContext]);
+  const copyInterview = () => {
+    navigator.clipboard?.writeText(interviewText);
+    setCopiedInterview(true);
+    window.setTimeout(() => setCopiedInterview(false), 1600);
+  };
 
   return (
+    <>
     <Stack gap="lg">
       <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md">
         <Card p="lg" radius="xl" className="stat-card profile-overview-card">
@@ -643,6 +664,9 @@ function PatientProfileBoard({ profileId, profileOptions, profileContext, rows, 
             <ProfileFact label="Birth" value={birth} />
             <ProfileFact label="Approx age" value={age ? `~${age}` : 'unknown'} />
           </Stack>
+          <Button mt="md" variant="light" leftSection={<IconMail size={16} />} onClick={() => setInterviewOpen(true)}>
+            Draft interview
+          </Button>
         </Card>
 
         <Card p="lg" radius="xl" className="stat-card">
@@ -744,6 +768,46 @@ function PatientProfileBoard({ profileId, profileOptions, profileContext, rows, 
         </Paper>
       </SimpleGrid>
     </Stack>
+    <Modal
+      opened={interviewOpen}
+      onClose={() => setInterviewOpen(false)}
+      title="Copyable profile interview"
+      size="xl"
+      centered
+    >
+      <Stack gap="md">
+        <Text size="sm" c="dimmed">
+          Draft text you can copy into email or chat. Review before sending; avoid sending IDs,
+          full birth dates, raw source files, or anything you do not want in email.
+        </Text>
+        <SegmentedControl
+          data={[
+            { value: 'baseline', label: 'Baseline intake' },
+            { value: 'followup', label: 'Follow-up gaps' },
+            { value: 'family-history', label: 'Family history' },
+          ]}
+          value={interviewMode}
+          onChange={(value) => setInterviewMode(value as InterviewMode)}
+          fullWidth
+        />
+        <Textarea
+          className="interview-textarea"
+          value={interviewText}
+          minRows={20}
+          maxRows={32}
+          autosize
+          readOnly
+        />
+        <Group justify="space-between">
+          <Text size="xs" c="dimmed">Alias-only local draft · not medical advice</Text>
+          <Group gap="xs">
+            <Button variant="light" onClick={() => setInterviewOpen(false)}>Close</Button>
+            <Button onClick={copyInterview}>{copiedInterview ? 'Copied' : 'Copy questionnaire'}</Button>
+          </Group>
+        </Group>
+      </Stack>
+    </Modal>
+    </>
   );
 }
 
@@ -821,6 +885,177 @@ function ProfileTimelineRow({ item }: { item: ProfileArtifact }) {
       </div>
     </div>
   );
+}
+
+function buildInterviewText({ mode, profileId, profile, rows, wearableRows, profileContext }: {
+  mode: InterviewMode;
+  profileId: string;
+  profile?: ProfilePayload;
+  rows: LabPoint[];
+  wearableRows: WearablePoint[];
+  profileContext: ProfileContextPayload;
+}): string {
+  const alias = displayAlias(profileId);
+  const domains = topDomains(rows);
+  const flags = activeFlagRows(rows);
+  const pending = activePendingRows(rows);
+  const gaps = safeArtifacts(profileContext.diagnosticGaps);
+  const familyRelationships = safeArtifacts(profileContext.familyRelationships);
+  const familyHistory = safeArtifacts(profileContext.familyHistory);
+  const contextNotes = safeArtifacts(profileContext.contextNotes);
+  const wearableMetrics = [...new Set(wearableRows.map((row) => row.metric))]
+    .sort((a, b) => contextRank(a) - contextRank(b) || a.localeCompare(b));
+  const sourceVault = sourceVaultCountFor(profileContext);
+  const coverage = [
+    `Profile alias in our private local tracker: ${alias}`,
+    `Birth precision currently stored: ${profileBirthLabel(profile)}; please confirm year/month only if wrong.`,
+    rows.length
+      ? `Local data coverage: ${rows.length.toLocaleString()} lab/source rows from ${dateSpan(rows.map((row) => row.date))}.`
+      : 'Local data coverage: no chartable lab rows yet.',
+    domains.length ? `Areas currently represented: ${domains.join(', ')}.` : '',
+    wearableRows.length
+      ? `Wearable/context rows: ${wearableRows.length.toLocaleString()} rows; main metrics: ${wearableMetrics.slice(0, 6).join(', ')}.`
+      : 'Wearable/context rows: none yet.',
+    sourceVault ? `Private source catalog: ${sourceVault} file(s) cataloged locally.` : '',
+  ].filter(Boolean);
+  const gapQuestions = gaps.flatMap((gap) => gap.context_questions || []).slice(0, 10);
+  const candidateChecks = gaps.flatMap((gap) => gap.candidate_tests || []).slice(0, 8);
+  const subject = mode === 'family-history'
+    ? `Subject: Family health history questions for ${alias}`
+    : mode === 'followup'
+      ? `Subject: Follow-up health profile questions for ${alias}`
+      : `Subject: Quick health profile interview for ${alias}`;
+
+  const intro = [
+    subject,
+    '',
+    'Hi [name],',
+    '',
+    `We are improving a private, local health profile for ${alias}. Could you reply with as much detail as you remember? Prose is perfect; bullets are fine. Approximate dates are useful, and "unknown" is a valid answer.`,
+    '',
+    'Please do not send legal IDs, full birth dates, insurance numbers, or anything you do not want in email. If you want to share records or exports, remove identifiers when possible or use a safer channel.',
+    '',
+    'Current local snapshot:',
+    ...coverage.map((line) => `- ${line}`),
+    '',
+  ];
+
+  if (mode === 'family-history') {
+    return [
+      ...intro,
+      'Family-history interview',
+      '',
+      '1) Close relatives',
+      '- For parents, siblings, children, grandparents, aunts/uncles, and cousins: what major conditions do you know about?',
+      '- For each condition: who had it, approximate age of onset, confirmed vs suspected, severity, and outcome if known.',
+      '- Any early deaths, strokes, heart attacks, aneurysms, cancers, dementia, autoimmune disease, psychiatric disease, clotting/bleeding issues, kidney stones, gout, thyroid disease, diabetes, or unusual reactions to medications?',
+      '',
+      '2) Patterns and shared context',
+      '- Do multiple relatives share the same issue, similar age of onset, or similar triggers?',
+      '- Did relatives share diet, water, mold, pets, occupations, hobbies, smoking exposure, heavy metals, travel, parasites, infections, or unusual supplement/medication use?',
+      '- Any known hereditary diagnoses or genetic test results? Please summarize; no raw identifiers needed.',
+      '',
+      '3) Household timeline',
+      '- Major moves, homes, water source changes, renovations, mold/water damage, pests, pets, occupational exposures, or unusual diet changes.',
+      '- Any family-wide illnesses, rashes, gut issues, neurological symptoms, sleep issues, or medication/supplement experiments?',
+      '',
+      familyRelationships.length || familyHistory.length
+        ? 'What we already have as context to verify or correct:'
+        : 'We do not have much family-history context yet.',
+      ...familyRelationships.slice(0, 8).map((rel) => `- Relationship clue: ${displayAlias(rel.profile_id || '')} / ${displayAlias(rel.relative_id || '')} (${rel.relation || 'relative'}). Is this correct?`),
+      ...familyHistory.slice(0, 8).map((item) => `- History clue: ${item.title || 'condition'} (${item.status || 'status unknown'}). What is the best version of this story?`),
+      '',
+      '4) Anything else',
+      '- What feels important that we did not ask?',
+      '- What are you uncertain about?',
+      '',
+      'Thank you — rough memory is much better than no timeline.',
+    ].join('\n');
+  }
+
+  if (mode === 'followup') {
+    return [
+      ...intro,
+      'Follow-up interview',
+      '',
+      flags.length ? `Local watch items by marker/category: ${uniqueMarkerList(flags, 10)}.` : 'No active source-flagged rows are currently showing.',
+      pending.length ? `Pending or nonnumeric source rows to reconcile: ${uniqueMarkerList(pending, 10)}.` : 'No active pending rows are currently showing.',
+      '',
+      '1) Timeline and recent changes',
+      '- Since the last labs/records, what changed? Diet, sleep, weight, exercise, travel, illness, stress, work, home, dental work, pets, water, sauna, fasting, alcohol, nicotine, cannabis, other substances?',
+      '- Any symptoms that appeared, disappeared, or changed? Include mild symptoms and approximate timing.',
+      '- Any medications, antibiotics, pain relievers, antihistamines, hormones, supplements, binders, detox products, or home remedies started/stopped? Include dose/frequency if remembered.',
+      '',
+      '2) Open questions from the local gap layer',
+      ...(gapQuestions.length ? gapQuestions.map((question) => `- ${question}`) : ['- Are any important symptoms, exposures, medications, or family-history clues missing from the profile?']),
+      ...(candidateChecks.length ? ['', 'Candidate checks to discuss or confirm:', ...candidateChecks.map((check) => `- ${check}`)] : []),
+      '',
+      '3) Source QA',
+      '- Are any lab dates, specimen types, fasting status, units, or result labels wrong?',
+      '- Were any results pending, cancelled, repeated, or corrected later?',
+      '- Do you have newer records or wearable exports that would close the timeline gap?',
+      '',
+      '4) Priorities',
+      '- What are the top 3 things you want understood or tracked better?',
+      '- What would count as improvement?',
+      '',
+      'Thank you — please answer in whatever format is easiest.',
+    ].join('\n');
+  }
+
+  return [
+    ...intro,
+    'Baseline intake interview',
+    '',
+    '1) Short health story',
+    '- In your own words, tell the health story from childhood to now. Major events, injuries, illnesses, surgeries, dental work, hospitalizations, infections, antibiotics, medications, and what changed afterward.',
+    '- What are the top current concerns, even if they feel minor or intermittent?',
+    '- What has improved, worsened, or stayed stable over time?',
+    '',
+    '2) Habits and context',
+    '- Typical sleep schedule, light/screens at night, snoring, waking, energy, naps.',
+    '- Food pattern, appetite, digestion, bowel pattern, food reactions, fasting, caffeine.',
+    '- Movement/exercise, injuries, pain, work posture, travel rhythm.',
+    '- Alcohol, nicotine/smoking/vaping, cannabis, recreational drugs, and exposure to secondhand smoke. Include true "none" answers.',
+    '- Home/work exposures: water source, mold/water damage, pets, solvents, metals, dust, pesticides, hobbies, occupations, travel.',
+    '',
+    '3) Medications and supplements',
+    '- Current and past medications: name/class, dose if known, start/stop dates, why used, benefits, side effects, and whether stopping changed anything.',
+    '- Antibiotics, pain relievers, acid blockers, antihistamines, hormones, steroids, sleep aids, and psychiatric medications are especially useful to timeline.',
+    '- Supplements/remedies: brand if useful, dose, timing, what changed, and any bad reactions.',
+    '',
+    '4) Family history',
+    '- Parents, siblings, children, grandparents, aunts/uncles: major conditions, approximate ages, and patterns.',
+    '- Anything that seems hereditary, runs in the household, or clusters around a shared exposure?',
+    '',
+    '5) Records/data that would help',
+    '- Recent labs, old labs, imaging summaries, hospital/clinic summaries, medication lists, vaccine/procedure timelines, dental records, wearable exports, weight history, blood pressure, sleep data.',
+    '- If sending files, remove identifiers where possible or use a safer channel than email.',
+    '',
+    contextNotes.length ? 'Context notes we already have; please correct if wrong:' : 'We have very little narrative context yet.',
+    ...contextNotes.slice(0, 6).map((note) => `- ${note.title || note.status || 'Context note'}: ${note.summary || 'please verify.'}`),
+    '',
+    '6) What did we miss?',
+    '- Add anything you think could matter, even if it seems weird or unrelated.',
+    '- Mark uncertain memories as uncertain; approximate dates are okay.',
+    '',
+    'Thank you — the goal is a better timeline, not perfect answers.',
+  ].join('\n');
+}
+
+function topDomains(rows: LabPoint[]): string[] {
+  const counts = new Map<string, number>();
+  rows.forEach((row) => counts.set(row.category, (counts.get(row.category) || 0) + 1));
+  return [...counts.entries()]
+    .sort(([a, countA], [b, countB]) => countB - countA || categoryRank(a) - categoryRank(b) || a.localeCompare(b))
+    .slice(0, 10)
+    .map(([category]) => category);
+}
+
+function uniqueMarkerList(rows: LabPoint[], limit: number): string {
+  return [...new Set(rows.map((row) => `${row.marker}${row.category ? ` (${row.category})` : ''}`))]
+    .slice(0, limit)
+    .join(', ');
 }
 
 function SummaryGrid({ rows, series, state, profileContext, setState }: {

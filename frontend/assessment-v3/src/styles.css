@@ -304,6 +304,15 @@ body {
     color-mix(in srgb, var(--paper-soft) 94%, transparent);
   background-size: 10px 10px, auto;
 }
+.interview-textarea textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: .84rem;
+  line-height: 1.48;
+  background:
+    var(--field-grain),
+    color-mix(in srgb, var(--paper) 96%, transparent);
+  background-size: 10px 10px, auto;
+}
 .profile-timeline {
   position: relative;
 }
