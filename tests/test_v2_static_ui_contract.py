@@ -65,6 +65,8 @@ def test_packaged_v3_static_ui_uses_framework_board() -> None:
     assert "Draft interview" in text
     assert "Copy questionnaire" in text
     assert "Baseline intake" in text
+    assert "Ask parents" in text
+    assert "Ask-your-parents hereditary interview" in text
     assert "History timeline" in text
     assert "Family & hereditary context" in text
     assert "Private source vault" in text

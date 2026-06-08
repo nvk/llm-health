@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.0.27 - 2026-06-08
+
+- Added an Assessment Profile “Ask parents” interview template for long-form hereditary, childhood, exposure, medication-reaction, and family-pattern fact finding.
+- The draft stays alias-only and includes existing relationship/history clues for correction without exporting raw source identifiers.
+
 ## 0.0.26 - 2026-06-08
 
 - Added a copyable Assessment Profile interview modal with baseline intake, follow-up gap, and family-history questionnaire drafts for email/chat outreach.

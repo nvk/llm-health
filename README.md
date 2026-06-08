@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.27** | Adds Ask parents interview template for long-form hereditary and family-pattern outreach. |
 | **0.0.26** | Adds copyable Profile interview modal for baseline, follow-up-gap, and family-history outreach drafts. |
 | **0.0.25** | Adds `health report` doctor/family PDF exports with flags, gaps, mini-trends, context, and privacy notes. |
 | **0.0.24** | Adds Patient Profile tab with profile facts, family/history context, diagnostic gaps, research jobs, and source-vault timeline. |
@@ -171,7 +172,7 @@ own-risk discussion packets, not medical advice; see `docs/reports.md`.
 
 ## One-command local UI
 
-The Profile tab includes a **Draft interview** modal that creates copyable text questionnaires for baseline intake, follow-up gaps, and family-history outreach. Use it to email/chat relatives or profile holders, then record replies as context notes or new source data.
+The Profile tab includes a **Draft interview** modal that creates copyable text questionnaires for baseline intake, follow-up gaps, family-history outreach, and a longer ask-your-parents hereditary questionnaire. Use it to email/chat relatives or profile holders, then record replies as context notes or new source data.
 
 After the HUB and health-assessments wiki root are configured once, users can regenerate and open the
 static Assessment v2 UI with a single command:

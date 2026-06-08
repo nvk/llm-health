@@ -71,7 +71,7 @@ type RowFocus = 'all' | 'flags' | 'resolved' | 'pending' | 'numeric' | 'qa';
 type OverlayPreset = 'smart' | 'current' | 'flagged' | 'recent' | 'core' | 'context';
 type FlagStatus = 'none' | 'active' | 'resolved';
 type PendingStatus = 'none' | 'active' | 'superseded';
-type InterviewMode = 'baseline' | 'followup' | 'family-history';
+type InterviewMode = 'baseline' | 'followup' | 'family-history' | 'ask-parents';
 
 type RawObservation = Record<string, string | undefined>;
 type RawWearable = Record<string, string | undefined>;
@@ -785,6 +785,7 @@ function PatientProfileBoard({ profileId, profileOptions, profileContext, rows, 
             { value: 'baseline', label: 'Baseline intake' },
             { value: 'followup', label: 'Follow-up gaps' },
             { value: 'family-history', label: 'Family history' },
+            { value: 'ask-parents', label: 'Ask parents' },
           ]}
           value={interviewMode}
           onChange={(value) => setInterviewMode(value as InterviewMode)}
@@ -920,11 +921,13 @@ function buildInterviewText({ mode, profileId, profile, rows, wearableRows, prof
   ].filter(Boolean);
   const gapQuestions = gaps.flatMap((gap) => gap.context_questions || []).slice(0, 10);
   const candidateChecks = gaps.flatMap((gap) => gap.candidate_tests || []).slice(0, 8);
-  const subject = mode === 'family-history'
-    ? `Subject: Family health history questions for ${alias}`
-    : mode === 'followup'
-      ? `Subject: Follow-up health profile questions for ${alias}`
-      : `Subject: Quick health profile interview for ${alias}`;
+  const subject = mode === 'ask-parents'
+    ? `Subject: Family health timeline questions from ${alias}`
+    : mode === 'family-history'
+      ? `Subject: Family health history questions for ${alias}`
+      : mode === 'followup'
+        ? `Subject: Follow-up health profile questions for ${alias}`
+        : `Subject: Quick health profile interview for ${alias}`;
 
   const intro = [
     subject,
@@ -939,6 +942,62 @@ function buildInterviewText({ mode, profileId, profile, rows, wearableRows, prof
     ...coverage.map((line) => `- ${line}`),
     '',
   ];
+
+  if (mode === 'ask-parents') {
+    return [
+      ...intro,
+      'Ask-your-parents hereditary interview',
+      '',
+      'This is a longer memory questionnaire for parents or older relatives. The goal is not perfect medical paperwork; the goal is to recover family patterns, approximate timelines, and clues that may change what we track.',
+      '',
+      '1) First, your side of the story',
+      '- What major health issues have you had? Include approximate age/year of onset, whether confirmed or suspected, severity, treatment, and what helped or hurt.',
+      '- Any surgeries, hospitalizations, ER visits, major injuries, head injuries, dental/jaw issues, infections, long antibiotic courses, transfusions, or unusual recoveries?',
+      '- Any current medications, frequent past medications, supplements, hormones, pain relievers, psychiatric meds, blood thinners, seizure meds, or drugs that caused bad reactions?',
+      '- Any allergies, anesthesia reactions, medication sensitivities, vaccine/procedure reactions, or unusual bleeding/clotting/bruising?',
+      '',
+      '2) What do you remember about me / this profile as a child?',
+      '- Pregnancy and birth context if known: complications, prematurity, C-section/vaginal, feeding issues, jaundice, infections, antibiotics, hospital stays. Year/month precision is enough; no full birth dates.',
+      '- Childhood patterns: ear infections, asthma/allergies/eczema, digestive issues, headaches, injuries, sleep issues, learning/attention, anxiety/mood, recurrent fevers, growth/weight, dental issues.',
+      '- Anything that started after a move, infection, medication, vaccine/procedure, injury, dental work, travel, mold/water damage, pet exposure, or diet change?',
+      '',
+      '3) Map the family tree medically',
+      '- For parents, siblings, children, grandparents, aunts/uncles, cousins, and any biologically related relatives: what conditions do you know about?',
+      '- For each: relationship, condition, approximate age at onset, confirmed vs suspected, outcome, and whether multiple relatives had similar issues.',
+      '- If someone died young or suddenly, what was the suspected cause and approximate age?',
+      '',
+      '4) High-yield hereditary categories',
+      '- Heart/vascular: early heart attack, stroke, aneurysm, high blood pressure, rhythm issues, sudden death, fainting, high cholesterol, clotting or bleeding problems.',
+      '- Brain/nerves: dementia, Parkinson-like symptoms, seizures, migraines, psychiatric disease, addiction, neuropathy, hearing loss, vision loss, tremor, unusual movement problems.',
+      '- Cancer: type, side of family, age at diagnosis, recurrence, multiple cancers, colon polyps, breast/ovarian/prostate/pancreatic/skin/brain cancers.',
+      '- Metabolic/endocrine: diabetes, thyroid, obesity pattern, gout, kidney stones, osteoporosis, infertility, pregnancy losses, early menopause, PCOS-like symptoms.',
+      '- Immune/inflammatory: autoimmune disease, celiac/IBD, psoriasis, rheumatoid-like disease, lupus-like disease, chronic infections, severe allergies/asthma/eczema.',
+      '- Liver/kidney/GI: jaundice/Gilbert-like history, gallbladder disease, fatty liver, hepatitis, kidney disease, recurrent UTIs, ulcers/reflux, bowel disease.',
+      '- Connective tissue: hypermobility, easy bruising, hernias, varicose veins, aneurysms, scoliosis, tendon/ligament tears.',
+      '',
+      '5) Shared household and exposure clues',
+      '- Homes and locations: major moves, water source, wells, old plumbing, mold/water damage, renovations, pesticides, pets, pests, nearby industry/farms, wildfire/smoke exposure.',
+      '- Occupations/hobbies in the family: solvents, metals, paint, welding, mining, shooting ranges, ceramics, stained glass, agriculture, salons, healthcare, labs, construction.',
+      '- Diet/substances: smoking/secondhand smoke, alcohol patterns, cannabis/other substances, unusual diets, seafood/fish frequency, supplements/remedies, parasites/travel/infections.',
+      '',
+      '6) Existing clues to verify or correct',
+      familyRelationships.length || familyHistory.length
+        ? '- Please verify these relationship/history clues from the local profile:'
+        : '- We do not have much verified family-history context yet, so your memory is the starting point.',
+      ...familyRelationships.slice(0, 10).map((rel) => `  - Relationship clue: ${displayAlias(rel.profile_id || '')} / ${displayAlias(rel.relative_id || '')} (${rel.relation || 'relative'}). Correct?`),
+      ...familyHistory.slice(0, 10).map((item) => `  - History clue: ${item.title || 'condition'} (${item.status || 'status unknown'}). What is the accurate version?`),
+      '',
+      '7) Records or people who would know more',
+      '- Are there old lab reports, imaging summaries, discharge papers, medication lists, genetic tests, family trees, death certificates, or relatives who remember details better?',
+      '- If sharing files, remove identifiers where possible or use a safer channel than email.',
+      '',
+      '8) Uncertainty is useful',
+      '- Please mark memories as confirmed, suspected, rumor, or unknown. Approximate decade/age is still useful.',
+      '- What feels important that this questionnaire did not ask?',
+      '',
+      'Thank you — this helps us spot hereditary patterns without assuming anyone has a condition just because a relative did.',
+    ].join('\n');
+  }
 
   if (mode === 'family-history') {
     return [
