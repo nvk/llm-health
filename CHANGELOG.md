@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.0.24 - 2026-06-08
+
+- Added a first-class Assessment Profile tab with alias-only profile facts, data
+  coverage, active concerns, family/hereditary context, history timeline,
+  narrative notes, diagnostic gaps, research jobs, and private source-vault
+  summary.
+- Export now carries safe family relationships, family-history events,
+  quick-review cards, diagnostic gaps, research jobs, and source-vault catalog
+  dates into the local UI payload.
+
 ## 0.0.23 - 2026-06-08
 
 - Assessment board now shows context-only profiles, including context notes,

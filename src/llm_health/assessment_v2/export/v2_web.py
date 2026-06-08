@@ -278,6 +278,11 @@ def _merge_local_health_context(profile_context: dict[str, Any]) -> None:
     context_notes = _read_hub_jsonl("context_notes.jsonl")
     specialist_notes = _read_hub_jsonl("specialist_notes.jsonl")
     hereditary_risks = _read_hub_jsonl("hereditary_risk_notes.jsonl")
+    family_relationships = _read_hub_jsonl("family_relationships.jsonl")
+    family_history = _read_hub_jsonl("family_history_events.jsonl")
+    quick_review_cards = _read_hub_jsonl("quick_review_cards.jsonl")
+    diagnostic_gaps = _read_hub_jsonl("diagnostic_gaps.jsonl")
+    research_jobs = _read_hub_jsonl("research_jobs.jsonl")
     source_vault_rows = _read_source_vault_manifest()
 
     for row in context_notes:
@@ -298,6 +303,61 @@ def _merge_local_health_context(profile_context: dict[str, Any]) -> None:
             },
         )
 
+    for row in family_relationships:
+        profile = _safe_alias(row.get("profile_id"))
+        relative = _safe_alias(row.get("relative_id"))
+        if not profile or not relative:
+            continue
+        relationship = {
+            "profile_id": profile,
+            "relative_id": relative,
+            "relation": _safe_artifact_text(row.get("relation")),
+            "degree": row.get("degree") if isinstance(row.get("degree"), int) else None,
+            "lineage": _safe_artifact_text(row.get("lineage")),
+            "shared_household": row.get("shared_household"),
+            "date": _date_part(row.get("created_at")),
+            "tags": _safe_tags(row.get("tags")) or ["FAMILY_HISTORY"],
+        }
+        _append_profile_artifact(
+            profile_context,
+            profile,
+            "familyRelationships",
+            relationship,
+        )
+        _append_profile_artifact(
+            profile_context,
+            relative,
+            "familyRelationships",
+            relationship,
+        )
+
+    for row in family_history:
+        profile = _safe_alias(row.get("profile_id"))
+        if not profile:
+            continue
+        related = [_safe_alias(item) for item in row.get("related_profile_ids", []) or []]
+        related = [item for item in related if item]
+        history_item = {
+            "kind": "family_history",
+            "date": _date_part(row.get("created_at")),
+            "title": _safe_artifact_text(row.get("condition")),
+            "status": _safe_artifact_text(row.get("status")),
+            "evidence": _safe_artifact_text(row.get("evidence")),
+            "onset_age": row.get("onset_age") if isinstance(row.get("onset_age"), int) else None,
+            "profile_id": profile,
+            "related_profile_ids": related,
+            "summary": _safe_artifact_text(row.get("note")),
+            "tags": _safe_tags(row.get("tags")) or ["FAMILY_HISTORY"],
+        }
+        _append_profile_artifact(profile_context, profile, "familyHistory", history_item)
+        for related_profile in related:
+            _append_profile_artifact(
+                profile_context,
+                related_profile,
+                "familyHistory",
+                history_item,
+            )
+
     for row in specialist_notes:
         profile = _safe_alias(row.get("profile_id"))
         if not profile:
@@ -313,6 +373,81 @@ def _merge_local_health_context(profile_context: dict[str, Any]) -> None:
                 "status": _safe_artifact_text(row.get("specialist_id")),
                 "summary": _safe_artifact_text(row.get("summary")),
                 "tags": _safe_tags(row.get("tags")) or ["SPECIALIST_NOTE", "INFERENCE"],
+            },
+        )
+
+    for row in quick_review_cards:
+        profile = _safe_alias(row.get("profile_id"))
+        if not profile:
+            continue
+        _append_profile_artifact(
+            profile_context,
+            profile,
+            "quickReviewCards",
+            {
+                "kind": "quick_review",
+                "date": _date_part(row.get("created_at")),
+                "title": _safe_artifact_text(row.get("title")),
+                "status": _safe_artifact_text(row.get("lane")),
+                "summary": _safe_artifact_text(row.get("summary")),
+                "priority": _safe_float(row.get("priority")),
+                "tags": _safe_tags(row.get("tags")) or ["INFERENCE"],
+            },
+        )
+
+    for row in diagnostic_gaps:
+        profile = _safe_alias(row.get("profile_id"))
+        if not profile:
+            continue
+        candidate_names = [
+            _safe_artifact_text(candidate.get("name"))
+            for candidate in row.get("candidates", []) or []
+            if isinstance(candidate, dict) and candidate.get("name")
+        ][:8]
+        context_questions = [
+            _safe_artifact_text(question)
+            for question in row.get("context_questions", []) or []
+            if question
+        ][:8]
+        _append_profile_artifact(
+            profile_context,
+            profile,
+            "diagnosticGaps",
+            {
+                "kind": "diagnostic_gap",
+                "date": _date_part(row.get("created_at")),
+                "title": _safe_artifact_text(row.get("title")),
+                "status": _safe_artifact_text(row.get("status")),
+                "summary": _safe_artifact_text(row.get("rationale")),
+                "gap_type": _safe_artifact_text(row.get("gap_type")),
+                "priority": _safe_float(row.get("priority")),
+                "candidate_tests": candidate_names,
+                "context_questions": context_questions,
+                "tags": _safe_tags(row.get("tags")) or ["DATA_GAP", "TEST_CANDIDATE"],
+            },
+        )
+
+    for row in research_jobs:
+        profile = _safe_alias(row.get("profile_id"))
+        if not profile:
+            continue
+        _append_profile_artifact(
+            profile_context,
+            profile,
+            "researchJobs",
+            {
+                "kind": "research_job",
+                "date": _date_part(row.get("created_at")),
+                "title": _safe_artifact_text(row.get("topic")),
+                "status": _safe_artifact_text(row.get("status")),
+                "summary": _safe_artifact_text(row.get("rationale")),
+                "priority": _safe_float(row.get("priority")),
+                "lenses": [
+                    _safe_artifact_text(lens)
+                    for lens in row.get("lenses", []) or []
+                    if _safe_artifact_text(lens)
+                ][:8],
+                "tags": ["INFERENCE"],
             },
         )
 
@@ -350,6 +485,10 @@ def _merge_local_health_context(profile_context: dict[str, Any]) -> None:
             summary["unmatched"] += 1
         source_type = _safe_artifact_text(row.get("source_type")) or "source"
         summary["types"][source_type] = summary["types"].get(source_type, 0) + 1
+        created = _date_part(row.get("created_at"))
+        if created:
+            summary["first_date"] = min(created, summary.get("first_date", created))
+            summary["latest_date"] = max(created, summary.get("latest_date", created))
 
     for profile, summary in source_summary.items():
         context = profile_context.setdefault(profile, {})
@@ -450,6 +589,15 @@ def _safe_tags(value: Any) -> list[str]:
 def _date_part(value: Any) -> str:
     text = _safe_artifact_text(value)
     return text[:10] if text else ""
+
+
+def _safe_float(value: Any) -> float | None:
+    try:
+        if value in (None, ""):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _read_optional_csv_dicts(path: Path) -> list[dict[str, str]]:

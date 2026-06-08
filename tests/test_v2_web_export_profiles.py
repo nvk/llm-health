@@ -227,6 +227,56 @@ def test_export_v2_web_includes_context_only_profiles(tmp_path, monkeypatch) -> 
         + "\n",
         encoding="utf-8",
     )
+    (hub / "family_relationships.jsonl").write_text(
+        json.dumps(
+            {
+                "profile_id": "eva",
+                "relative_id": "cara",
+                "relation": "child",
+                "degree": 1,
+                "lineage": "maternal",
+                "tags": ["FAMILY_HISTORY"],
+                "created_at": "2026-06-08T12:00:00+00:00",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (hub / "family_history_events.jsonl").write_text(
+        json.dumps(
+            {
+                "profile_id": "eva",
+                "condition": "cerebral amyloid angiopathy",
+                "status": "confirmed",
+                "evidence": "source-reviewed",
+                "related_profile_ids": ["cara"],
+                "tags": ["FAMILY_HISTORY"],
+                "created_at": "2026-06-08T12:00:00+00:00",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (hub / "diagnostic_gaps.jsonl").write_text(
+        json.dumps(
+            {
+                "profile_id": "eva",
+                "title": "Profile age QA",
+                "gap_type": "qa_gap",
+                "rationale": (
+                    "Birth-year mismatch should be confirmed before age-derived inference."
+                ),
+                "status": "open",
+                "priority": 0.8,
+                "candidates": [{"name": "confirm alias-only birth year"}],
+                "context_questions": ["Which birth year is correct?"],
+                "tags": ["DATA_GAP", "QA_ISSUE"],
+                "created_at": "2026-06-08T12:00:00+00:00",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     (hub / "source-vault").mkdir()
     (hub / "source-vault" / "manifest.jsonl").write_text(
         json.dumps(
@@ -236,6 +286,7 @@ def test_export_v2_web_includes_context_only_profiles(tmp_path, monkeypatch) -> 
                 "copied": True,
                 "match_status": "hash_only",
                 "source_hash": "abc123",
+                "created_at": "2026-06-08T12:00:00+00:00",
             }
         )
         + "\n",
@@ -254,9 +305,16 @@ def test_export_v2_web_includes_context_only_profiles(tmp_path, monkeypatch) -> 
     assert eva_context["contextNotes"][0]["title"] == "CAA context"
     assert "raw-file.pdf" not in eva_context["contextNotes"][0]["summary"]
     assert eva_context["specialistNotes"][0]["title"] == "Neuro context"
+    assert eva_context["familyRelationships"][0]["relative_id"] == "cara"
+    assert eva_context["familyHistory"][0]["title"] == "cerebral amyloid angiopathy"
+    assert eva_context["diagnosticGaps"][0]["title"] == "Profile age QA"
+    assert eva_context["diagnosticGaps"][0]["candidate_tests"] == [
+        "confirm alias-only birth year"
+    ]
     assert eva_context["sourceVault"]["count"] == 1
     assert eva_context["sourceVault"]["copied"] == 1
     assert eva_context["sourceVault"]["unmatched"] == 1
+    assert eva_context["sourceVault"]["latest_date"] == "2026-06-08"
     data_js = export.data_path.read_text(encoding="utf-8")
     assert ".pdf" not in data_js.lower()
     assert "/Users/" not in data_js

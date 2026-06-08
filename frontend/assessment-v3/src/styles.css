@@ -172,6 +172,7 @@ body {
 .stat-card, .review-card, .domain-card { cursor: pointer; transition: transform .16s ease, border-color .16s ease; }
 .stat-card:hover, .review-card:hover, .domain-card:hover { transform: translateY(-2px); border-color: var(--accent); }
 .stat-card h2 { font-size: 2.15rem; letter-spacing: -.045em; }
+.profile-overview-card h2 { font-size: 2.55rem; }
 .review-value { font-size: 1.65rem; font-weight: 900; letter-spacing: -.04em; margin: .25rem 0; }
 
 .domain-card {
@@ -271,8 +272,66 @@ body {
     var(--paper-soft);
   background-size: 10px 10px, auto;
 }
+.profile-section { overflow: hidden; }
+.profile-fact.ok .mantine-Text-root:last-child { color: #2f855a; }
+.profile-fact.warn .mantine-Text-root:last-child { color: #a36a00; }
+.profile-fact.bad .mantine-Text-root:last-child { color: var(--flag); }
+.priority-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .75rem;
+  text-align: left;
+  align-items: start;
+  padding: .75rem .85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--corner-md);
+  background:
+    var(--field-grain),
+    var(--paper-soft);
+  background-size: 10px 10px, auto;
+  color: var(--ink);
+  cursor: pointer;
+}
+.priority-row.static { cursor: default; }
+.priority-row:not(.static):hover { border-color: var(--accent); }
 .context-mini {
   padding: .85rem .95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--corner-md);
+  background:
+    var(--field-grain),
+    color-mix(in srgb, var(--paper-soft) 94%, transparent);
+  background-size: 10px 10px, auto;
+}
+.profile-timeline {
+  position: relative;
+}
+.timeline-row {
+  display: grid;
+  grid-template-columns: 6.8rem 1rem 1fr;
+  gap: .55rem;
+  align-items: start;
+}
+.timeline-date {
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 850;
+  padding-top: .15rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.timeline-dot {
+  width: .62rem;
+  height: .62rem;
+  border-radius: 99px;
+  background: var(--accent);
+  border: 2px solid var(--paper);
+  margin-top: .26rem;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.timeline-body {
+  padding: .65rem .8rem;
   border: 1px solid var(--border);
   border-radius: var(--corner-md);
   background:

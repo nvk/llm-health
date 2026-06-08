@@ -59,7 +59,7 @@ import {
 } from 'recharts';
 
 type ThemeMode = 'light' | 'dark';
-type SectionId = 'review' | 'timeline' | 'sources';
+type SectionId = 'profile' | 'review' | 'timeline' | 'sources';
 type TimeRange = 'all' | '30d' | '90d' | 'ytd' | '18mo';
 type TimelineMode = 'stack' | 'overlay';
 type ScaleMode = 'auto' | 'raw' | 'norm' | 'center' | 'pctmean' | 'pctfirst' | 'z' | 'log';
@@ -88,6 +88,20 @@ type ProfileArtifact = {
   status?: string;
   summary?: string;
   tags?: string[];
+  evidence?: string;
+  profile_id?: string;
+  relative_id?: string;
+  related_profile_ids?: string[];
+  relation?: string;
+  degree?: number | null;
+  lineage?: string;
+  shared_household?: boolean | null;
+  priority?: number | null;
+  gap_type?: string;
+  candidate_tests?: string[];
+  context_questions?: string[];
+  lenses?: string[];
+  onset_age?: number | null;
 };
 
 type SourceVaultSummary = {
@@ -95,12 +109,19 @@ type SourceVaultSummary = {
   copied?: number;
   unmatched?: number;
   types?: Record<string, number>;
+  first_date?: string;
+  latest_date?: string;
 };
 
 type ProfileContextPayload = Record<string, unknown> & {
   contextNotes?: ProfileArtifact[];
   specialistNotes?: ProfileArtifact[];
   hereditaryRisks?: ProfileArtifact[];
+  familyRelationships?: ProfileArtifact[];
+  familyHistory?: ProfileArtifact[];
+  quickReviewCards?: ProfileArtifact[];
+  diagnosticGaps?: ProfileArtifact[];
+  researchJobs?: ProfileArtifact[];
   sourceVault?: SourceVaultSummary;
 };
 
@@ -357,7 +378,7 @@ function App() {
                   className="profile-switch"
                   data={profileOptions}
                   value={state.profile}
-                  onChange={(value) => update({ profile: value, section: 'review' })}
+                  onChange={(value) => update({ profile: value, section: 'profile' })}
                   fullWidth
                 />
 
@@ -457,10 +478,22 @@ function App() {
 
             <Tabs value={state.section} onChange={(value) => update({ section: (value || 'review') as SectionId })} className="main-tabs">
               <Tabs.List>
+                <Tabs.Tab value="profile" leftSection={<IconClipboardList size={16} />}>Profile</Tabs.Tab>
                 <Tabs.Tab value="review" leftSection={<IconClipboardList size={16} />}>Review</Tabs.Tab>
                 <Tabs.Tab value="timeline" leftSection={<IconTimeline size={16} />}>Timeline</Tabs.Tab>
                 <Tabs.Tab value="sources" leftSection={<IconDatabase size={16} />}>Sources</Tabs.Tab>
               </Tabs.List>
+
+              <Tabs.Panel value="profile" pt="lg">
+                <PatientProfileBoard
+                  profileId={state.profile}
+                  profileOptions={profileOptions}
+                  profileContext={profileContext}
+                  rows={allProfileRows}
+                  wearableRows={wearableRows.filter((row) => row.profileId === state.profile)}
+                  setState={setState}
+                />
+              </Tabs.Panel>
 
               <Tabs.Panel value="review" pt="lg">
                 <ReviewBoard
@@ -554,8 +587,8 @@ function Header({ state, rows, allRows, series, profileOptions, profileContext, 
         {resolved ? <MetricPill label={`${resolved.toLocaleString()} resolved`} icon={<IconTimeline size={15} />} tone="ok" onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: 'resolved' }))} /> : null}
         <MetricPill label={`${pending.toLocaleString()} pending`} icon={<IconAlertTriangle size={15} />} tone={pending ? 'bad' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: pending ? 'pending' : 'all' }))} />
         {qa ? <MetricPill label={`${qa.toLocaleString()} normalized`} icon={<IconDatabase size={15} />} tone={qaWarnings ? 'warn' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: 'qa' }))} /> : null}
-        {contextCount ? <MetricPill label={`${contextCount.toLocaleString()} context notes`} icon={<IconClipboardList size={15} />} tone="warn" onClick={() => setState((current) => ({ ...current, section: 'review' }))} /> : null}
-        {sourceVaultCount ? <MetricPill label={`${sourceVaultCount.toLocaleString()} vaulted sources`} icon={<IconDatabase size={15} />} tone="warn" onClick={() => setState((current) => ({ ...current, section: 'review' }))} /> : null}
+        {contextCount ? <MetricPill label={`${contextCount.toLocaleString()} context notes`} icon={<IconClipboardList size={15} />} tone="warn" onClick={() => setState((current) => ({ ...current, section: 'profile' }))} /> : null}
+        {sourceVaultCount ? <MetricPill label={`${sourceVaultCount.toLocaleString()} vaulted sources`} icon={<IconDatabase size={15} />} tone="warn" onClick={() => setState((current) => ({ ...current, section: 'profile' }))} /> : null}
         <MetricPill label={`latest ${latest || totalLatest || '—'}`} icon={<IconTimeline size={15} />} />
       </Group>
     </Paper>
@@ -564,6 +597,230 @@ function Header({ state, rows, allRows, series, profileOptions, profileContext, 
 
 function MetricPill({ label, icon, tone = 'default', onClick }: { label: string; icon: React.ReactNode; tone?: 'default' | 'warn' | 'bad' | 'ok'; onClick?: () => void }) {
   return <button type="button" className={`metric-pill ${tone}`} onClick={onClick}>{icon}<span>{label}</span></button>;
+}
+
+function PatientProfileBoard({ profileId, profileOptions, profileContext, rows, wearableRows, setState }: {
+  profileId: string;
+  profileOptions: ComboboxItem[];
+  profileContext: ProfileContextPayload;
+  rows: LabPoint[];
+  wearableRows: WearablePoint[];
+  setState: React.Dispatch<React.SetStateAction<UiState>>;
+}) {
+  const profile = (DATA.profiles || []).find((item) => item.profile_id === profileId);
+  const label = profileOptions.find((item) => item.value === profileId)?.label || displayAlias(profileId);
+  const contextNotes = safeArtifacts(profileContext.contextNotes);
+  const familyRelationships = safeArtifacts(profileContext.familyRelationships);
+  const familyHistory = safeArtifacts(profileContext.familyHistory);
+  const hereditaryRisks = safeArtifacts(profileContext.hereditaryRisks);
+  const specialistNotes = safeArtifacts(profileContext.specialistNotes);
+  const gaps = safeArtifacts(profileContext.diagnosticGaps);
+  const reviewCards = safeArtifacts(profileContext.quickReviewCards);
+  const researchJobs = safeArtifacts(profileContext.researchJobs);
+  const artifacts = profileArtifacts(profileContext);
+  const flags = activeFlagRows(rows);
+  const pending = activePendingRows(rows);
+  const resolved = resolvedFlagRows(rows);
+  const qa = rows.filter((row) => row.normalizationWarnings || row.normalizationApplied);
+  const domains = [...new Set(rows.map((row) => row.category))].sort((a, b) => categoryRank(a) - categoryRank(b) || a.localeCompare(b));
+  const wearableMetrics = [...new Set(wearableRows.map((row) => row.metric))].sort((a, b) => contextRank(a) - contextRank(b) || a.localeCompare(b));
+  const timeline = patientHistoryItems(profileId, rows, profileContext).slice(0, 40);
+  const dataRange = dateSpan(rows.map((row) => row.date));
+  const wearableRange = dateSpan(wearableRows.map((row) => row.date));
+  const birth = profileBirthLabel(profile);
+  const age = approximateAge(profile);
+  const showAllProfileRows = { range: 'all' as TimeRange, category: 'All categories' };
+
+  return (
+    <Stack gap="lg">
+      <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="md">
+        <Card p="lg" radius="xl" className="stat-card profile-overview-card">
+          <Text size="xs" fw={800} c="dimmed" tt="uppercase" lts={1}>Patient profile</Text>
+          <Title order={2}>{label}</Title>
+          <Stack gap={4} mt="sm">
+            <ProfileFact label="Alias" value={profileId} />
+            <ProfileFact label="Role" value={clean(profile?.role) || 'not set'} />
+            <ProfileFact label="Birth" value={birth} />
+            <ProfileFact label="Approx age" value={age ? `~${age}` : 'unknown'} />
+          </Stack>
+        </Card>
+
+        <Card p="lg" radius="xl" className="stat-card">
+          <Text size="xs" fw={800} c="dimmed" tt="uppercase" lts={1}>Data coverage</Text>
+          <Title order={2}>{rows.length.toLocaleString()}</Title>
+          <Text size="sm" c="dimmed">lab/source rows · {domains.length || 0} domains</Text>
+          <Divider my="sm" />
+          <ProfileFact label="Lab range" value={dataRange || 'no numeric lab rows'} />
+          <ProfileFact label="Wearables" value={wearableRows.length ? `${wearableRows.length.toLocaleString()} rows · ${wearableMetrics.length} metrics` : 'none'} />
+          <ProfileFact label="Wearable range" value={wearableRange || '—'} />
+          {domains.length ? (
+            <Group gap={5} mt="xs">
+              {domains.slice(0, 8).map((domain) => <Badge key={domain} size="xs" variant="light" color="gray">{domain}</Badge>)}
+              {domains.length > 8 ? <Badge size="xs" variant="light" color="gray">+{domains.length - 8}</Badge> : null}
+            </Group>
+          ) : null}
+        </Card>
+
+        <Card p="lg" radius="xl" className="stat-card">
+          <Text size="xs" fw={800} c="dimmed" tt="uppercase" lts={1}>Review state</Text>
+          <Title order={2}>{profileArtifactCount(profileContext).toLocaleString()}</Title>
+          <Text size="sm" c="dimmed">profile/context artifacts</Text>
+          <Divider my="sm" />
+          <ProfileFact label="Active flags" value={`${flags.length}`} tone={flags.length ? 'bad' : 'ok'} />
+          <ProfileFact label="Pending rows" value={`${pending.length}`} tone={pending.length ? 'warn' : 'ok'} />
+          <ProfileFact label="Open gaps" value={`${gaps.length}`} tone={gaps.length ? 'warn' : 'ok'} />
+          <ProfileFact label="Vaulted sources" value={`${sourceVaultCountFor(profileContext)}`} />
+        </Card>
+      </SimpleGrid>
+
+      <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
+        <Paper p="lg" radius="xl" className="board-card profile-section">
+          <Group justify="space-between" mb="md">
+            <div>
+              <Title order={3}>What to know first</Title>
+              <Text size="sm" c="dimmed">Compact profile facts, active concerns, and context-only records.</Text>
+            </div>
+            <Badge variant="light">{artifacts.length} notes</Badge>
+          </Group>
+          <Stack gap="xs">
+            {sourceVaultCountFor(profileContext) ? <SourceVaultSummaryRow summary={profileContext.sourceVault} /> : null}
+            {flags.length ? <PriorityRow title="Active source flags" detail={summarizeMarkers(flags)} tag="QA_ISSUE" onClick={() => setState((current) => ({ ...current, ...showAllProfileRows, section: 'sources', rowFocus: 'flags' }))} /> : null}
+            {pending.length ? <PriorityRow title="Pending / nonnumeric rows" detail={summarizeMarkers(pending)} tag="DATA_GAP" onClick={() => setState((current) => ({ ...current, ...showAllProfileRows, section: 'sources', rowFocus: 'pending' }))} /> : null}
+            {qa.length ? <PriorityRow title="Normalization QA" detail={`${qa.length} row(s) have translated/normalized display fields`} tag="QA_ISSUE" onClick={() => setState((current) => ({ ...current, ...showAllProfileRows, section: 'sources', rowFocus: 'qa' }))} /> : null}
+            {gaps.slice(0, 4).map((gap) => <PriorityRow key={`${gap.title}-${gap.date}`} title={gap.title || 'Diagnostic gap'} detail={gapDetail(gap)} tag="DATA_GAP" />)}
+            {!sourceVaultCountFor(profileContext) && !flags.length && !pending.length && !qa.length && !gaps.length ? (
+              <Text c="dimmed">No active flags or gaps in this profile filter.</Text>
+            ) : null}
+          </Stack>
+        </Paper>
+
+        <Paper p="lg" radius="xl" className="board-card profile-section">
+          <Group justify="space-between" mb="md">
+            <div>
+              <Title order={3}>Family & hereditary context</Title>
+              <Text size="sm" c="dimmed">Relationship graph and family-history clues. Context only, not diagnosis.</Text>
+            </div>
+            <Badge color={familyHistory.length || hereditaryRisks.length ? 'yellow' : 'gray'} variant="light">{familyRelationships.length} relations</Badge>
+          </Group>
+          <Stack gap="xs">
+            {familyRelationships.slice(0, 8).map((rel, index) => <FamilyRelationshipRow key={`${rel.profile_id}-${rel.relative_id}-${index}`} profileId={profileId} relationship={rel} />)}
+            {familyHistory.slice(0, 6).map((item, index) => <ContextMiniCard key={`fh-${item.title}-${index}`} artifact={{ ...item, kind: 'family_history' }} />)}
+            {hereditaryRisks.slice(0, 4).map((item, index) => <ContextMiniCard key={`hr-${item.title}-${index}`} artifact={item} />)}
+            {!familyRelationships.length && !familyHistory.length && !hereditaryRisks.length ? <Text c="dimmed">No family/history context recorded yet.</Text> : null}
+          </Stack>
+        </Paper>
+      </SimpleGrid>
+
+      <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
+        <Paper p="lg" radius="xl" className="board-card profile-section">
+          <Group justify="space-between" mb="md">
+            <div>
+              <Title order={3}>History timeline</Title>
+              <Text size="sm" c="dimmed">Labs, context records, family-history events, gaps, consults, and source-vault milestones.</Text>
+            </div>
+            <Badge variant="light">{timeline.length} events</Badge>
+          </Group>
+          <Stack gap="xs" className="profile-timeline">
+            {timeline.map((item, index) => <ProfileTimelineRow key={`${item.date}-${item.title}-${index}`} item={item} />)}
+            {!timeline.length ? <Text c="dimmed">No timeline entries yet.</Text> : null}
+          </Stack>
+        </Paper>
+
+        <Paper p="lg" radius="xl" className="board-card profile-section">
+          <Group justify="space-between" mb="md">
+            <div>
+              <Title order={3}>Notes, consults, research</Title>
+              <Text size="sm" c="dimmed">Most useful narrative artifacts for understanding the patient quickly.</Text>
+            </div>
+            <Group gap="xs">
+              {specialistNotes.length ? <Badge color="yellow" variant="light">{specialistNotes.length} consults</Badge> : null}
+              {researchJobs.length ? <Badge color="blue" variant="light">{researchJobs.length} research</Badge> : null}
+            </Group>
+          </Group>
+          <Stack gap="sm">
+            {[...contextNotes, ...reviewCards, ...specialistNotes, ...researchJobs].slice(0, 12).map((artifact, index) => <ContextMiniCard key={`${artifact.kind}-${artifact.title}-${index}`} artifact={artifact} />)}
+            {!contextNotes.length && !reviewCards.length && !specialistNotes.length && !researchJobs.length ? <Text c="dimmed">No narrative artifacts recorded yet.</Text> : null}
+          </Stack>
+        </Paper>
+      </SimpleGrid>
+    </Stack>
+  );
+}
+
+function ProfileFact({ label, value, tone = 'default' }: { label: string; value: string; tone?: 'default' | 'warn' | 'bad' | 'ok' }) {
+  return (
+    <Group justify="space-between" gap="md" className={`profile-fact ${tone}`} wrap="nowrap">
+      <Text size="sm" c="dimmed">{label}</Text>
+      <Text size="sm" fw={800} ta="right">{value || '—'}</Text>
+    </Group>
+  );
+}
+
+function PriorityRow({ title, detail, tag, onClick }: { title: string; detail: string; tag: string; onClick?: () => void }) {
+  return (
+    <button type="button" className="priority-row" onClick={onClick}>
+      <Badge size="xs" className={`tag tag-${tag.toLowerCase()}`} data-tag={tag} title={tag}>{tagLabel(tag)}</Badge>
+      <div>
+        <Text fw={900}>{title}</Text>
+        <Text size="sm" c="dimmed" lineClamp={2}>{detail}</Text>
+      </div>
+    </button>
+  );
+}
+
+function gapDetail(gap: ProfileArtifact): string {
+  if (gap.candidate_tests?.length) return `Candidate tests: ${gap.candidate_tests.slice(0, 4).join(', ')}`;
+  if (gap.context_questions?.length) return `Questions: ${gap.context_questions.slice(0, 3).join(' · ')}`;
+  return gap.summary || gap.status || 'Needs context';
+}
+
+function SourceVaultSummaryRow({ summary }: { summary?: SourceVaultSummary }) {
+  if (!summary?.count) return null;
+  const typeText = Object.entries(summary.types || {}).map(([type, count]) => `${count} ${type}`).join(', ');
+  const dateText = dateSpan([summary.first_date || '', summary.latest_date || '']);
+  return (
+    <div className="priority-row static">
+      <Badge size="xs" color="gray" variant="light">Sources</Badge>
+      <div>
+        <Text fw={900}>Private source vault</Text>
+        <Text size="sm" c="dimmed">{summary.count} source(s){summary.copied ? ` · ${summary.copied} copied` : ''}{summary.unmatched ? ` · ${summary.unmatched} unmatched` : ''}{typeText ? ` · ${typeText}` : ''}{dateText ? ` · catalog ${dateText}` : ''}</Text>
+      </div>
+    </div>
+  );
+}
+
+function FamilyRelationshipRow({ profileId, relationship }: { profileId: string; relationship: ProfileArtifact }) {
+  const other = profileId === relationship.profile_id ? relationship.relative_id : relationship.profile_id;
+  const relation = profileId === relationship.profile_id ? relationship.relation : reverseRelation(relationship.relation || '');
+  return (
+    <div className="mini-row">
+      <Group justify="space-between" wrap="nowrap">
+        <div>
+          <Text fw={900}>{displayAlias(other || '')}</Text>
+          <Text size="xs" c="dimmed">{relation || 'relative'}{relationship.lineage ? ` · ${relationship.lineage}` : ''}{relationship.degree ? ` · degree ${relationship.degree}` : ''}</Text>
+        </div>
+        <Badge className="tag tag-family_history" size="xs">{tagLabel('FAMILY_HISTORY')}</Badge>
+      </Group>
+    </div>
+  );
+}
+
+function ProfileTimelineRow({ item }: { item: ProfileArtifact }) {
+  const tag = primaryTag(item.tags);
+  return (
+    <div className="timeline-row">
+      <div className="timeline-date">{item.date || '—'}</div>
+      <div className="timeline-dot" />
+      <div className="timeline-body">
+        <Group gap="xs" mb={3}>
+          <Badge size="xs" className={`tag tag-${tag.toLowerCase()}`} data-tag={tag} title={tag}>{tagLabel(tag)}</Badge>
+          {item.status ? <Text size="xs" c="dimmed">{item.status}</Text> : null}
+        </Group>
+        <Text fw={900}>{item.title || artifactKindLabel(item.kind)}</Text>
+        {item.summary ? <Text size="sm" c="dimmed" lineClamp={3}>{item.summary}</Text> : null}
+      </div>
+    </div>
+  );
 }
 
 function SummaryGrid({ rows, series, state, profileContext, setState }: {
@@ -582,7 +839,7 @@ function SummaryGrid({ rows, series, state, profileContext, setState }: {
   const vaulted = sourceVaultCountFor(profileContext);
   const cards = [
     { title: 'Evidence points', value: numeric.toLocaleString(), note: `${series.length} plotted series`, icon: IconChartDots3, section: 'timeline' as SectionId },
-    ...(contextCount || vaulted ? [{ title: 'Context packet', value: contextCount.toLocaleString(), note: vaulted ? `${vaulted} vaulted source(s)` : 'Records and notes, not chart dots', icon: IconClipboardList, section: 'review' as SectionId }] : []),
+    ...(contextCount || vaulted ? [{ title: 'Context packet', value: contextCount.toLocaleString(), note: vaulted ? `${vaulted} vaulted source(s)` : 'Records and notes, not chart dots', icon: IconClipboardList, section: 'profile' as SectionId }] : []),
     { title: 'Active flags', value: flagged.toLocaleString(), note: flagged ? 'Click to audit' : resolved ? `${resolved} resolved by later tests` : 'None in filter', icon: IconFlag, section: 'sources' as SectionId, focus: flagged ? 'flags' as RowFocus : resolved ? 'resolved' as RowFocus : 'all' as RowFocus },
     { title: 'Pending rows', value: pending.toLocaleString(), note: 'Never plotted as dots', icon: IconAlertTriangle, section: 'sources' as SectionId, focus: 'pending' as RowFocus },
     { title: 'Derived rows', value: derived.toLocaleString(), note: 'Visible as Derived tags', icon: IconActivity, section: 'sources' as SectionId },
@@ -1674,8 +1931,12 @@ function currentProfileContext(profileId: string): ProfileContextPayload {
 function profileArtifacts(context: ProfileContextPayload): ProfileArtifact[] {
   const artifacts = [
     ...safeArtifacts(context.contextNotes),
+    ...safeArtifacts(context.familyHistory),
     ...safeArtifacts(context.hereditaryRisks),
     ...safeArtifacts(context.specialistNotes),
+    ...safeArtifacts(context.quickReviewCards),
+    ...safeArtifacts(context.diagnosticGaps),
+    ...safeArtifacts(context.researchJobs),
   ];
   return artifacts.sort((a, b) => clean(b.date).localeCompare(clean(a.date)) || artifactRank(a) - artifactRank(b));
 }
@@ -1690,6 +1951,20 @@ function safeArtifacts(value: unknown): ProfileArtifact[] {
       title: clean(item.title),
       status: clean(item.status),
       summary: clean(item.summary),
+      evidence: clean(item.evidence),
+      profile_id: clean(item.profile_id),
+      relative_id: clean(item.relative_id),
+      related_profile_ids: Array.isArray(item.related_profile_ids) ? item.related_profile_ids.map(clean).filter(Boolean) : [],
+      relation: clean(item.relation),
+      degree: typeof item.degree === 'number' ? item.degree : null,
+      lineage: clean(item.lineage),
+      shared_household: typeof item.shared_household === 'boolean' ? item.shared_household : null,
+      priority: typeof item.priority === 'number' ? item.priority : null,
+      gap_type: clean(item.gap_type),
+      candidate_tests: Array.isArray(item.candidate_tests) ? item.candidate_tests.map(clean).filter(Boolean) : [],
+      context_questions: Array.isArray(item.context_questions) ? item.context_questions.map(clean).filter(Boolean) : [],
+      lenses: Array.isArray(item.lenses) ? item.lenses.map(clean).filter(Boolean) : [],
+      onset_age: typeof item.onset_age === 'number' ? item.onset_age : null,
       tags: Array.isArray(item.tags) ? item.tags.map(clean).filter(Boolean) : [],
     }));
 }
@@ -1697,8 +1972,12 @@ function safeArtifacts(value: unknown): ProfileArtifact[] {
 function artifactRank(artifact: ProfileArtifact): number {
   const kind = clean(artifact.kind).toLowerCase();
   if (kind === 'context') return 0;
-  if (kind === 'hereditary') return 1;
-  if (kind === 'specialist') return 2;
+  if (kind === 'family_history') return 1;
+  if (kind === 'hereditary') return 2;
+  if (kind === 'diagnostic_gap') return 3;
+  if (kind === 'quick_review') return 4;
+  if (kind === 'specialist') return 5;
+  if (kind === 'research_job') return 6;
   return 5;
 }
 
@@ -1715,6 +1994,89 @@ function primaryTag(tags: string[] | undefined): string {
   const ordered = ['QA_ISSUE', 'DATA_GAP', 'HEREDITARY_RISK', 'FAMILY_HISTORY', 'SPECIALIST_NOTE', 'INFERENCE', 'CONTEXT', 'OBSERVED'];
   const safe = new Set((tags || []).map(clean).filter(Boolean));
   return ordered.find((tag) => safe.has(tag)) || [...safe][0] || 'CONTEXT';
+}
+
+function patientHistoryItems(profileId: string, rows: LabPoint[], context: ProfileContextPayload): ProfileArtifact[] {
+  const byDate = new Map<string, LabPoint[]>();
+  rows.forEach((row) => {
+    byDate.set(row.date, [...(byDate.get(row.date) || []), row]);
+  });
+  const labEvents: ProfileArtifact[] = [...byDate.entries()].map(([date, list]) => {
+    const categories = [...new Set(list.map((row) => row.category))].sort((a, b) => categoryRank(a) - categoryRank(b) || a.localeCompare(b));
+    const flags = activeFlagRows(list).length;
+    const pending = activePendingRows(list).length;
+    return {
+      kind: 'lab',
+      date,
+      title: `${list.length} lab/source row(s)`,
+      status: flags ? `${flags} active flag(s)` : pending ? `${pending} pending` : 'observed',
+      summary: categories.slice(0, 6).join(', '),
+      tags: flags ? ['QA_ISSUE'] : pending ? ['DATA_GAP'] : ['OBSERVED'],
+    };
+  });
+  const sourceVault = context.sourceVault?.count
+    ? [{
+        kind: 'source_vault',
+        date: context.sourceVault.latest_date || context.sourceVault.first_date || '',
+        title: 'Private source vault cataloged',
+        status: `${context.sourceVault.count} source(s)`,
+        summary: 'Raw sources are stored locally as hash-named blobs; original filenames and paths are not exported.',
+        tags: ['CONTEXT'],
+      } as ProfileArtifact]
+    : [];
+  return [
+    ...sourceVault,
+    ...labEvents,
+    ...profileArtifacts(context),
+  ]
+    .filter((item) => item.date || item.title)
+    .sort((a, b) => clean(b.date).localeCompare(clean(a.date)) || artifactRank(a) - artifactRank(b));
+}
+
+function dateSpan(dates: string[]): string {
+  const safe = dates.filter(Boolean).sort();
+  if (!safe.length) return '';
+  const first = safe[0];
+  const last = safe.at(-1) || first;
+  return first === last ? first : `${first} → ${last}`;
+}
+
+function profileBirthLabel(profile?: ProfilePayload): string {
+  if (!profile?.birth_year) return 'not set';
+  return profile.birth_month ? `${profile.birth_year}-${String(profile.birth_month).padStart(2, '0')}` : String(profile.birth_year);
+}
+
+function approximateAge(profile?: ProfilePayload): number | null {
+  if (!profile?.birth_year) return null;
+  const now = new Date();
+  let age = now.getFullYear() - profile.birth_year;
+  if (profile.birth_month && now.getMonth() + 1 < profile.birth_month) age -= 1;
+  return age;
+}
+
+function reverseRelation(relation: string): string {
+  const map: Record<string, string> = {
+    father: 'child',
+    mother: 'child',
+    parent: 'child',
+    son: 'parent',
+    daughter: 'parent',
+    child: 'parent',
+    brother: 'sibling',
+    sister: 'sibling',
+    sibling: 'sibling',
+    grandfather: 'grandchild',
+    grandmother: 'grandchild',
+    grandparent: 'grandchild',
+    grandson: 'grandparent',
+    granddaughter: 'grandparent',
+    grandchild: 'grandparent',
+  };
+  return map[relation] || relation;
+}
+
+function artifactKindLabel(kind?: string): string {
+  return clean(kind).replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase()) || 'Profile event';
 }
 
 function buildCategoryOptions(rows: LabPoint[]): ComboboxItem[] {
@@ -1808,7 +2170,7 @@ function initialState(profiles: ComboboxItem[]): UiState {
     profile: params.get('profile') || profiles[0]?.value || 'rod',
     range,
     category,
-    section: (params.get('section') as SectionId) || 'review',
+    section: (params.get('section') as SectionId) || 'profile',
     mode,
     scale: (params.get('scale') as ScaleMode) || 'auto',
     agg: (params.get('agg') as AggMode) || 'observed',

@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.24** | Adds Patient Profile tab with profile facts, family/history context, diagnostic gaps, research jobs, and source-vault timeline. |
 | **0.0.23** | Assessment board now surfaces context-only profiles with notes, specialist cards, and source-vault counts. |
 | **0.0.22** | Adds private source-vault cataloging and multipass source-audit for OCR/medium-confidence rows. |
 | **0.0.21** | Fixes archive binary scanning so sanitized DuckDB/Parquet files are included instead of false-skipped. |

@@ -61,6 +61,10 @@ def test_packaged_v3_static_ui_uses_framework_board() -> None:
 
     assert "Assessment board" in text
     assert "data-v3-ui" in text
+    assert "Patient profile" in text
+    assert "History timeline" in text
+    assert "Family & hereditary context" in text
+    assert "Private source vault" in text
     assert "Context overlays" in text
     assert "Source flag rings" in text
     assert "Exact date labels" in text
