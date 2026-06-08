@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.0.25 - 2026-06-08
+
+- Added `health report` for dependency-free, alias-only PDF exports with separate
+  doctor-facing clinician briefs and family-facing plain-language summaries.
+- Reports include active flags, pending rows, source ranges, context/family notes,
+  diagnostic gaps, mini-trends, source-vault counts, and privacy/own-risk notes.
+
 ## 0.0.24 - 2026-06-08
 
 - Added a first-class Assessment Profile tab with alias-only profile facts, data

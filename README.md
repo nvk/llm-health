@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.25** | Adds `health report` doctor/family PDF exports with flags, gaps, mini-trends, context, and privacy notes. |
 | **0.0.24** | Adds Patient Profile tab with profile facts, family/history context, diagnostic gaps, research jobs, and source-vault timeline. |
 | **0.0.23** | Assessment board now surfaces context-only profiles with notes, specialist cards, and source-vault counts. |
 | **0.0.22** | Adds private source-vault cataloging and multipass source-audit for OCR/medium-confidence rows. |
@@ -149,6 +150,23 @@ health archive verify <archive.tar.gz>
 Archives go to `<resolved HUB>/archives/` and include a manifest with checksums plus any privacy
 skips. This is a de-identified HUB snapshot, not a raw PDF/XML/Apple-export backup. See
 `docs/archives.md`.
+
+
+## PDF reports
+
+Create local, de-identified PDFs for two audiences:
+
+```sh
+health report --profile rod --audience both
+health report --profile rod --audience doctor --range 18mo
+health report --profile cara --audience family --output-dir ~/Desktop/health-packets
+```
+
+Doctor reports are concise clinician briefs with source ranges, active flags, pending rows,
+diagnostic gaps, family/context notes, mini-trends, and a recent source-row appendix. When the
+health-assessments wiki root is configured, reports use the full v2 canonical history like the GUI.
+Family reports are plain-language summaries with watch items and questions to ask. Reports are
+own-risk discussion packets, not medical advice; see `docs/reports.md`.
 
 ## One-command local UI
 

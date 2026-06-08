@@ -28,8 +28,9 @@ source_runtime = """## Runtime integration
 
 Claude Code is the primary command UX. Native slash-command docs live in `claude-plugin/commands/`
 and map `/health`, `/review`, `/ingest`, `/research`, `/close-gaps`, `/med-review`,
-`/protocol-review`, `/sync-v2`, `/ui`, `/dr-visit`, `/test-battery`, and `/consult` to the same CLI-backed
-intent families. Treat `@health` and natural-language health requests as the same concierge intent.
+`/protocol-review`, `/sync-v2`, `/ui`, `/report`, `/dr-visit`, `/test-battery`, and
+`/consult` to the same CLI-backed intent families. Treat `@health` and natural-language health
+requests as the same concierge intent.
 Generated Codex, OpenCode, Pi, and portable AGENTS mirrors adapt invocation wording; they do not fork
 the behavior contract.
 """

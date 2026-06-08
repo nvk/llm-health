@@ -74,6 +74,8 @@ health config hub-path ~/health --init --accept-risk
 health config wiki-root <health-assessments-topic-root>
 health ui
 health ui --no-open
+health report --profile rod --audience both
+health report --profile rod --audience doctor --range 18mo
 health archive create
 health archive list
 health archive verify <archive.tar.gz>
@@ -119,8 +121,9 @@ health protocol-review --profile rod "flu shot"
 
 Claude Code is the primary command UX. Native slash-command docs live in `claude-plugin/commands/`
 and map `/health`, `/review`, `/ingest`, `/research`, `/close-gaps`, `/med-review`,
-`/protocol-review`, `/sync-v2`, `/ui`, `/dr-visit`, `/test-battery`, and `/consult` to the same CLI-backed
-intent families. Treat `@health` and natural-language health requests as the same concierge intent.
+`/protocol-review`, `/sync-v2`, `/ui`, `/report`, `/dr-visit`, `/test-battery`, and
+`/consult` to the same CLI-backed intent families. Treat `@health` and natural-language health
+requests as the same concierge intent.
 Generated Codex, OpenCode, Pi, and portable AGENTS mirrors adapt invocation wording; they do not fork
 the behavior contract.
 
@@ -159,6 +162,14 @@ Prefer `health ui` for users who want to look at their data. It resolves the acc
 `<HUB>/v2-web/`, and opens it. Use `--no-open` for scripts and `--output <dir>` for a custom export
 folder. If wiki root is missing, guide the user to run `health config wiki-root <path>` once rather
 than asking them to remember `health-v2 export-web` internals.
+
+### PDF reports
+
+Use `health report --profile <alias> --audience doctor|family|both` when users want
+shareable packets. The doctor audience is a concise clinician brief with source ranges,
+active flags, pending rows, gaps, context notes, and mini-trends. The family audience is
+plain-language with watch items and questions to ask. Reports are alias-only local PDFs;
+do not add raw source filenames or paths, and remind users to verify original sources.
 
 ### New results
 

@@ -62,6 +62,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("deid", result.stdout)
         self.assertIn("local-service", result.stdout)
         self.assertIn("health ui", result.stdout)
+        self.assertIn("health report", result.stdout)
         self.assertIn("external", result.stdout)
 
         machine = self.run_cli("capabilities", "--json")
@@ -71,6 +72,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("capabilities", ids)
         self.assertIn("deid", ids)
         self.assertIn("local-service", ids)
+        self.assertIn("reports", ids)
 
     def test_deid_preview_extract_and_apply(self):
         synthetic = (
@@ -818,6 +820,51 @@ class CliTests(unittest.TestCase):
             self.assertEqual(profiles.returncode, 0, profiles.stderr)
             self.assertIn("sol · birth 2018", profiles.stdout)
             self.assertIn("lele · birth 2026-01", profiles.stdout)
+
+    def test_report_exports_doctor_and_family_pdfs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ingest = self.run_cli(
+                "ingest-note",
+                "--profile",
+                "rod",
+                "--marker",
+                "Mercury whole blood",
+                "--value",
+                "57.9",
+                "--unit",
+                "ug/L",
+                "--category",
+                "Heavy metals",
+                "--flag",
+                "High",
+                "--reference-range",
+                "<=19.7",
+                "--accept-risk",
+                store=tmp,
+            )
+            self.assertEqual(ingest.returncode, 0, ingest.stderr)
+            output_dir = Path(tmp) / "exports"
+            report = self.run_cli(
+                "report",
+                "--profile",
+                "rod",
+                "--audience",
+                "both",
+                "--output-dir",
+                str(output_dir),
+                store=tmp,
+            )
+            self.assertEqual(report.returncode, 0, report.stderr)
+            self.assertIn("doctor:", report.stdout)
+            self.assertIn("family:", report.stdout)
+            pdfs = sorted(output_dir.glob("*.pdf"))
+            self.assertEqual(len(pdfs), 2)
+            for pdf in pdfs:
+                data = pdf.read_bytes()
+                self.assertTrue(data.startswith(b"%PDF-1.4"))
+                self.assertNotIn(b"/Users", data)
+                self.assertNotIn(b"Mobile Documents", data)
+                self.assertNotIn(b"source_file_alias", data)
 
 
 if __name__ == "__main__":

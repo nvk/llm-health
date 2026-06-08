@@ -56,6 +56,7 @@ from llm_health.operator_runtime import (
     trace_for_draft,
 )
 from llm_health.registry import dumps_capabilities, render_capabilities
+from llm_health.reports import generate_profile_report, generate_profile_reports
 from llm_health.research import ResearchWorkflowSpec
 from llm_health.service import LOCAL_HOSTS, render_service_routes, run_service
 from llm_health.source_vault import (
@@ -210,6 +211,47 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override static UI output directory; default is <resolved HUB>/v2-web",
     )
     ui.add_argument("--no-open", action="store_true", help="Export only; do not open browser")
+
+    report = sub.add_parser(
+        "report", help="Generate de-identified PDF reports for doctors or family"
+    )
+    _store_arg(report)
+    _risk_arg(report)
+    _profile_arg(report)
+    report.add_argument(
+        "--audience",
+        choices=["doctor", "family", "both"],
+        default="both",
+        help="doctor=clinician brief, family=plain-language summary, both=two PDFs",
+    )
+    report.add_argument(
+        "--range",
+        choices=["all", "30d", "90d", "ytd", "18mo"],
+        default="all",
+        help="Observation date window for the report",
+    )
+    report.add_argument(
+        "--wiki-root",
+        help=(
+            "Optional health-assessments wiki root; default uses configured wiki root "
+            "to include full v2 history"
+        ),
+    )
+    report.add_argument(
+        "--max-observations",
+        type=int,
+        default=50,
+        help="Maximum recent source rows in the appendix",
+    )
+    report.add_argument(
+        "--output",
+        help="Output PDF path; valid only when --audience is doctor or family",
+    )
+    report.add_argument(
+        "--output-dir",
+        help="Output directory; default is <resolved HUB>/reports",
+    )
+    report.add_argument("--open", action="store_true", help="Open generated PDF(s)")
 
     archive = sub.add_parser("archive", help="Create/list/verify compressed HUB archives")
     archive_sub = archive.add_subparsers(dest="archive_command", required=True)
@@ -855,6 +897,54 @@ def cmd_ui(args: argparse.Namespace) -> int:
     if not args.no_open:
         webbrowser.open(index_path.resolve().as_uri())
         print("browser: opened")
+    return 0
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    store = _private_store_from_args(args)
+    store.init()
+    profile = _profile_for_store(args, store)
+    if args.output and args.audience == "both":
+        print(
+            "--output can only be used with --audience doctor or --audience family",
+            file=sys.stderr,
+        )
+        return 4
+    if args.output and args.output_dir:
+        print("use either --output or --output-dir, not both", file=sys.stderr)
+        return 4
+    output_dir = Path(args.output_dir).expanduser() if args.output_dir else None
+    wiki_root = resolve_wiki_root(args.wiki_root)
+    if args.output:
+        report = generate_profile_report(
+            store,
+            profile,
+            audience=args.audience,
+            output=Path(args.output).expanduser(),
+            wiki_root=wiki_root,
+            date_range=args.range,
+            max_observations=args.max_observations,
+        )
+        reports = [report]
+    else:
+        reports = generate_profile_reports(
+            store,
+            profile,
+            audience=args.audience,
+            output_dir=output_dir,
+            wiki_root=wiki_root,
+            date_range=args.range,
+            max_observations=args.max_observations,
+        )
+    for report in reports:
+        print(
+            f"{report.audience}: {report.path} "
+            f"({report.observation_count} rows, {report.active_flag_count} active flags, "
+            f"{report.pending_count} pending)"
+        )
+        if args.open:
+            webbrowser.open(report.path.resolve().as_uri())
+    print("privacy: report is alias-only; verify original sources before decisions")
     return 0
 
 
@@ -1668,6 +1758,7 @@ def main(argv: list[str] | None = None) -> int:
         "dr-visit": cmd_dr_visit,
         "config": cmd_config,
         "ui": cmd_ui,
+        "report": cmd_report,
         "archive": cmd_archive,
         "source-vault": cmd_source_vault,
         "source-audit": cmd_source_audit,

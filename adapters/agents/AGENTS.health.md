@@ -51,6 +51,7 @@ health result --profile alex --marker mercury
 health context --profile alex
 health self-report --profile alex --subject GI --status "self-reported fine" --note "Current GI status is fine."
 health close-gaps --profile alex
+health report --profile alex --audience both
 health test-battery --profile alex --scope expanded --sources
 health specialists --short
 health consult --profile alex --specialist auto
@@ -77,4 +78,5 @@ health protocol-review --profile alex "flu shot"
 - "@health current concerns based on trends" → read context, results, quick reviews, then summarize.
 - "@health GI is fine" → store `health self-report` as `CONTEXT`.
 - "@health close gaps" → `health close-gaps` and explain context-first questions plus candidates.
+- "@health make doctor/family PDFs" → `health report --profile <alias> --audience both`.
 - "@health run liver consult" → `health consult --specialist liver_biliary_gi`.

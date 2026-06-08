@@ -212,6 +212,23 @@ CAPABILITIES: tuple[Capability, ...] = (
         docs=["docs/v2-repackaging.md", "docs/agentic-ui-design-packet.md"],
     ),
     Capability(
+        capability_id="reports",
+        name="Doctor/family PDF reports",
+        kind="ui",
+        command="health report --profile <alias> --audience doctor|family|both",
+        summary=(
+            "Generate nice local PDF exports with doctor-facing clinician briefs "
+            "and family-facing plain-language summaries."
+        ),
+        module="llm_health.reports",
+        privacy="dependency-free PDF writer; alias-only content; no raw source paths/filenames",
+        tests=[
+            "tests/test_reports.py",
+            "tests/test_cli.py::CliTests::test_report_exports_doctor_and_family_pdfs",
+        ],
+        docs=["README.md", "docs/reports.md"],
+    ),
+    Capability(
         capability_id="agent-templates",
         name="Agent plugin templates",
         kind="agent",
