@@ -2,7 +2,7 @@
 
 `llm-health` should feel like `llm-wiki` on first run: friendly, local-first, and useful before
 any fancy dashboard is configured. A first run should welcome the user, enroll an alias-only profile,
-request useful data dumps, and fall back to a strong questionnaire when the user has little data.
+request useful data dumps, point to the local Assessment Board early, and fall back to a strong questionnaire when the user has little data.
 The first run must show the own-risk disclaimer before collecting health data.
 
 ## Commands
@@ -15,6 +15,7 @@ health agreement accept --own-risk
 health enroll --alias <alias> --birth-year <yyyy> [--birth-month <1-12>] --role <context>
 health data-wishlist
 health dr-visit --profile <alias> --cadence onboarding
+health ui  # open the local Assessment Board after setup/import
 health dr-visit --profile <alias> --cadence monthly --sources
 ```
 
@@ -39,6 +40,11 @@ Ask for data in descending usefulness:
    triggers, confounders, negative clues, and uncertainty instead of accepting thin answers.
 8. **Data-poor questionnaire** — top concerns, timeline, baseline metrics, exposure changes,
    intake timeline, body-system sweep, constraints, and escalation thresholds.
+
+The onboarding flow should mention `health ui` early, not only in advanced docs. The UI is the
+fastest way for users to see whether profiles, imported rows, family context, flags, diagnostic gaps,
+and interview drafts are actually present. If no imports exist yet, frame it as an empty/local review
+board that becomes useful after data dumps are synced.
 
 The CLI text intentionally says what to collect without storing raw source paths or filenames.
 Health-facing commands are gated behind the own-risk agreement described in

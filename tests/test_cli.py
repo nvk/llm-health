@@ -338,6 +338,8 @@ class CliTests(unittest.TestCase):
         self.assertIn("Family history and hereditary references", result.stdout)
         self.assertIn("Smoking, alcohol, drugs, and habits", result.stdout)
         self.assertIn("Adaptive digging rules", result.stdout)
+        self.assertIn("See the UI early", result.stdout)
+        self.assertIn("health ui", result.stdout)
 
         with tempfile.TemporaryDirectory() as tmp:
             wishlist = self.run_cli("data-wishlist", store=tmp)

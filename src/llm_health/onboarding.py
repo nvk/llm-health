@@ -548,6 +548,7 @@ def render_welcome() -> str:
         "- health profiles\n"
         "- health data-wishlist\n"
         "- health dr-visit --profile <alias> --cadence onboarding\n"
+        "- health ui  # open the local Assessment Board once a HUB/data exists\n"
         "- health dr-visit --profile <alias> --cadence monthly --sources"
     )
     return "\n\n".join(
@@ -555,6 +556,13 @@ def render_welcome() -> str:
             render_disclaimer(),
             welcome,
             commands,
+            (
+                "## See the UI early\n"
+                "After setup or any data import, run `health ui` to export and open the "
+                "local Assessment Board. It shows profiles, source rows, timelines, "
+                "context notes, family/history clues, flags, gaps, reports, and the "
+                "copyable interview drafts. Use `health ui --no-open` in scripts."
+            ),
             render_blocks(INTAKE_BLOCKS),
             render_blocks(NARRATIVE_MEMORY_BLOCKS),
             render_blocks(FAMILY_REFERENCE_BLOCKS),

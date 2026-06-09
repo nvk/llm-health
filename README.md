@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.28** | First-run onboarding now points users to `health ui` early so the local board is not hidden. |
 | **0.0.27** | Adds Ask parents interview template for long-form hereditary and family-pattern outreach. |
 | **0.0.26** | Adds copyable Profile interview modal for baseline, follow-up-gap, and family-history outreach drafts. |
 | **0.0.25** | Adds `health report` doctor/family PDF exports with flags, gaps, mini-trends, context, and privacy notes. |
@@ -191,7 +192,7 @@ Recharts assets, so end users do not need Node or a web server.
 ## First-run onboarding
 
 Run `health` or `health welcome` for the first-run flow. It starts with the own-risk disclaimer,
-then asks for an alias-only profile, data dumps to import, and a data-poor questionnaire when the
+then asks for an alias-only profile, data dumps to import, points users to the local UI early, and a data-poor questionnaire when the
 user does not have much history yet.
 Periodic check-ins use the cheeky-but-useful Dr Visit prompts:
 
@@ -201,6 +202,7 @@ health agreement accept --own-risk
 health enroll --alias sol --birth-year 2018 --role child
 health data-wishlist
 health dr-visit --profile sol --cadence onboarding
+health ui  # open the local Assessment Board after setup/import
 health dr-visit --profile sol --cadence monthly --sources
 health test-battery --profile sol --scope expanded --sources
 health consult --profile sol --specialist auto

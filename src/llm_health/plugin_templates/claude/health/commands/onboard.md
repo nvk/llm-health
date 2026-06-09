@@ -12,7 +12,10 @@ health welcome
 health enroll --alias <alias> --birth-year <yyyy> [--birth-month <1-12>] --role <context>
 health data-wishlist
 health dr-visit --profile <alias> --cadence onboarding
+health ui  # after setup/import, show the local Assessment Board
 ```
+
+When onboarding finishes or after the first import/sync, explicitly tell the user about `health ui`; do not leave the UI hidden as an advanced feature.
 
 If alias/birth-year are not known, ask concise follow-up questions. Privacy is mandatory: aliases
 only, no raw source paths/filenames, no legal names, no full DOBs, no emails, no raw Apple

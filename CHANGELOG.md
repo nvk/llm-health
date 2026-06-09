@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.0.28 - 2026-06-09
+
+- Added early `health ui` guidance to the welcome/onboarding flow so new users know how to open the local Assessment Board after setup or import.
+- Updated onboarding docs and Claude/plugin templates to mention the UI after first import/sync.
+
 ## 0.0.27 - 2026-06-08
 
 - Added an Assessment Profile “Ask parents” interview template for long-form hereditary, childhood, exposure, medication-reaction, and family-pattern fact finding.
