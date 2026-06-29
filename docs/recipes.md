@@ -71,9 +71,13 @@ health ui --no-open --output ~/health/v2-web
 ## Import raw genotype context
 
 Use a local raw genotype text file only after accepting the extra genetic-risk prompt. The file path
-is not stored; the source is fingerprinted and dense calls stay under the private HUB.
+is not stored; matching runs locally and only matched SNP findings are persisted by default.
 
 ```sh
+# GUI path: opens a localhost-only browser file picker.
+health genomics ui --profile alex
+
+# CLI path: useful for scripts.
 health genomics import ./synthetic-genotype.txt --profile alex --accept-genetic-risk
 health genomics qc --profile alex
 health genomics annotate --profile alex
@@ -82,7 +86,9 @@ health genomics pgx --profile alex
 health genomics confirm-list --profile alex
 ```
 
-Genomics output is confirmation-first context, not diagnosis or medication advice.
+The GUI posts raw genotype text only to the local process, does not send/store the browser
+filename/path, and does not store dense genome-wide calls by default. Genomics output is
+confirmation-first context, not diagnosis or medication advice.
 
 ## Smoke-test the future local API
 

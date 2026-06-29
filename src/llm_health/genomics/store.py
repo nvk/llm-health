@@ -26,7 +26,10 @@ class GenomicsStore:
                 json.dumps(
                     {
                         "schema": "llm-health-genomics-v0",
-                        "privacy": "raw genetic files are not stored here; source paths omitted",
+                        "privacy": (
+                            "raw genetic files are not stored here; source paths omitted; "
+                            "stored variant calls are matched allowlist only by default"
+                        ),
                         "disclaimer": "genomic artifacts are context only, not diagnosis",
                     },
                     indent=2,

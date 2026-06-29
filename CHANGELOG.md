@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.0.30 - 2026-06-29
+
+- Added `health genomics ui` for a localhost-only genotype SNP matching GUI with a browser file picker, profile selector, genetic-risk acknowledgement, QC summary, and cross-reference cards.
+- Changed genomics import helpers so dense genome-wide calls are not stored by default; the vault keeps source fingerprints, sparse matched SNP calls, and findings.
+
 ## 0.0.29 - 2026-06-28
 
 - Added dependency-light `health genomics` commands for raw genotype import by fingerprint, source QC, bundled marker annotation summaries, and confirmation-first cross-reference cards.

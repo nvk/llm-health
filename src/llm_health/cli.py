@@ -46,8 +46,9 @@ from llm_health.genomics import (
     GenomicsStore,
     build_cross_references,
     build_qc,
-    parse_raw_genotype_file,
+    import_raw_genotype_text_into_store,
 )
+from llm_health.genomics.gui import GenomicsGuiServer
 from llm_health.genomics.qc import render_qc
 from llm_health.genomics.review import (
     render_annotation_summary,
@@ -575,12 +576,13 @@ def build_parser() -> argparse.ArgumentParser:
     genomics_sub = genomics.add_subparsers(dest="genomics_command", required=True)
 
     genomics_import = genomics_sub.add_parser(
-        "import", help="Import a raw genotype text file without storing its path"
+        "import",
+        help="Run local SNP matching against raw genotype text without storing the raw file/path",
     )
     _store_arg(genomics_import)
     _risk_arg(genomics_import)
     _profile_arg(genomics_import)
-    genomics_import.add_argument("input", help="Local raw genotype text file to fingerprint/import")
+    genomics_import.add_argument("input", help="Local raw genotype text file to scan/match")
     genomics_import.add_argument(
         "--source-kind",
         choices=["auto", "23andme", "ancestrydna", "raw_genotype", "clinical_lab"],
@@ -595,6 +597,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--accept-genetic-risk",
         action="store_true",
         help="Required: acknowledge genetic privacy/family implications for this import",
+    )
+    genomics_import.add_argument(
+        "--store-dense-variants",
+        action="store_true",
+        help="Store dense genome-wide calls locally instead of matched SNP findings only",
+    )
+    genomics_import.add_argument(
+        "--accept-dense-genetic-storage",
+        action="store_true",
+        help="Required with --store-dense-variants; intended only for local FOSS workflows",
     )
 
     for name, help_text in [
@@ -627,6 +639,23 @@ def build_parser() -> argparse.ArgumentParser:
     _risk_arg(genomics_explain)
     _profile_arg(genomics_explain)
     genomics_explain.add_argument("rsid")
+
+    genomics_ui = genomics_sub.add_parser(
+        "ui",
+        aliases=["gui"],
+        help="Open a localhost genotype import GUI with a browser file picker",
+    )
+    _store_arg(genomics_ui)
+    _risk_arg(genomics_ui)
+    genomics_ui.add_argument("--profile", help="Optional initial profile alias")
+    genomics_ui.add_argument("--host", default="127.0.0.1", help="Bind host; defaults to localhost")
+    genomics_ui.add_argument("--port", type=int, default=8766, help="Bind port")
+    genomics_ui.add_argument("--no-open", action="store_true", help="Print URL without opening")
+    genomics_ui.add_argument(
+        "--allow-nonlocal",
+        action="store_true",
+        help="Allow a non-local bind; not recommended for private genetic data",
+    )
 
     capabilities = sub.add_parser("capabilities", help="Show llm-health feature map metadata")
     capabilities.add_argument(
@@ -1591,8 +1620,47 @@ def _genomics_store_from_args(
 
 
 def cmd_genomics(args: argparse.Namespace) -> int:
-    health_store, genomics_store, profile = _genomics_store_from_args(args)
     command = args.genomics_command
+    if command in {"ui", "gui"}:
+        if args.host not in LOCAL_HOSTS and not args.allow_nonlocal:
+            print(
+                "refusing non-local genomics GUI bind without --allow-nonlocal; "
+                "use --host 127.0.0.1 for local-only mode",
+                file=sys.stderr,
+            )
+            return 4
+        store = _private_store_from_args(args)
+        store.init()
+        if args.profile:
+            profile = validate_profile_alias(args.profile)
+            if not store.profile_exists(profile):
+                raise PrivacyError(
+                    f"profile alias {profile!r} is not enrolled; run `health enroll` first"
+                )
+            path = f"/genomics/ui?profile={profile}"
+        else:
+            path = "/genomics/ui"
+        server = GenomicsGuiServer((args.host, args.port), store)
+        url = f"http://{args.host}:{args.port}{path}"
+        print(f"starting llm-health genomics GUI on {url}")
+        print("local_only: true")
+        print(
+            "privacy: browser filename/path are not posted; raw genetic text and dense "
+            "genome-wide calls are not stored by default"
+        )
+        print("stop: press Ctrl-C")
+        if not args.no_open:
+            webbrowser.open(url)
+            print("browser: opened")
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            print("\nstopped")
+        finally:
+            server.server_close()
+        return 0
+
+    health_store, genomics_store, profile = _genomics_store_from_args(args)
     if command == "import":
         if not args.accept_genetic_risk:
             print(
@@ -1600,22 +1668,35 @@ def cmd_genomics(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 4
-        result = parse_raw_genotype_file(
-            args.input,
+        input_path = Path(args.input)
+        if not input_path.exists() or not input_path.is_file():
+            print("genotype input was not found or is not a regular file", file=sys.stderr)
+            return 4
+        summary = import_raw_genotype_text_into_store(
+            health_store,
+            genomics_store,
             profile_id=profile,
+            content=input_path.read_bytes(),
             source_kind=args.source_kind,
             clinical_grade=args.clinical_grade,
+            accept_genetic_risk=args.accept_genetic_risk,
+            store_dense_variants=args.store_dense_variants,
+            accept_dense_genetic_storage=args.accept_dense_genetic_storage,
+            run_crossref=True,
         )
-        genomics_store.upsert_source(result.source)
-        genomics_store.replace_variants(result.source.source_id or "", result.variants)
-        qc = build_qc(result.source, result.variants)
-        print("Imported genomic source")
-        print(f"source_id: {result.source.source_id}")
-        print(f"source_kind: {result.source.source_kind}")
-        print(f"markers: {result.source.marker_count}")
-        print(f"call_rate: {result.source.call_rate:.3f}")
-        print("warnings: " + (", ".join(qc.warnings) if qc.warnings else "none"))
-        print("privacy: raw genetic file path not stored; source is fingerprinted only")
+        print("Matched genomic source")
+        print(f"source_id: {summary.source.source_id}")
+        print(f"source_kind: {summary.source.source_kind}")
+        print(f"markers_scanned: {summary.source.marker_count}")
+        print(f"stored_variant_scope: {summary.stored_variant_scope}")
+        print(f"stored_variants: {summary.stored_variant_count}")
+        print(f"call_rate: {summary.source.call_rate:.3f}")
+        print("warnings: " + (", ".join(summary.qc.warnings) if summary.qc.warnings else "none"))
+        print(f"stored_genomic_inferences: {summary.stored_inferences}")
+        print(
+            "privacy: raw genetic file path, browser filename, raw text, and dense genome-wide "
+            "calls are not stored by default"
+        )
         print("genetic_data_notice: context only; not diagnostic; confirm before action")
         return 0
 

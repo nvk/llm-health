@@ -8,6 +8,11 @@ This repo is a package-first, local-first health intelligence scaffold. Treat al
   and `health agreement accept --own-risk` (or setup with `--accept-risk`) before profile-specific
   workflows.
 - Never commit raw PDFs, Apple Health XML/CDA files, raw source filenames, source filesystem paths, legal names, full birth dates, health numbers, emails, or raw Apple source/device names.
+- Never commit raw genotype files, browser-selected genotype filenames/paths, or dense genome-wide
+  genotype-call stores. Non-local/cloud LLMs must not read raw genotype text or
+  `genomics/variants/` JSONL directly; use rendered `health genomics` outputs and matched SNP
+  analysis cards instead. Dense calls are only for explicitly approved local FOSS/no-network
+  workflows.
 - Use aliases only for built-in/demo profiles: `rod` and `cara`.
 - Keep raw inputs outside Git. Use environment variables or local config for private paths.
 - Generated data under `data/` and `.llm-health/` is ignored by default.

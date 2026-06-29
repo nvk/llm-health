@@ -17,6 +17,8 @@ def render_sources(sources: list[GenomicSource], variant_count: int, inference_c
         lines.append(f"assay: {source.assay_type}")
         lines.append(f"genome_build: {source.genome_build}")
         lines.append(f"markers: {source.marker_count}")
+        lines.append(f"stored_variant_scope: {source.stored_variant_scope}")
+        lines.append(f"stored_variants: {source.stored_variant_count}")
         lines.append(f"call_rate: {source.call_rate:.3f}")
         lines.append(f"clinical_grade: {str(source.clinical_grade).lower()}")
         lines.append("")

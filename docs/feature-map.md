@@ -32,8 +32,10 @@ health capabilities --json
   redacted staging text plus entity metadata hashes.
 - `health service` binds localhost by default and refuses non-local binds unless the user explicitly
   passes `--allow-nonlocal`.
-- `health genomics` stores source fingerprints and local variant calls only under the private HUB;
-  raw genetic file paths are not stored, and genomic artifacts are review context, not diagnosis.
+- `health genomics` stores source fingerprints, sparse matched SNP calls, and findings under the
+  private HUB by default; raw genetic file paths and dense genome-wide calls are not stored.
+- `health genomics ui` is localhost-only by default; its browser file picker runs local matching
+  without sending/storing the browser filename/path or dense genome-wide calls.
 
 ## Current scaffolds
 
@@ -46,8 +48,9 @@ Several capabilities are intentionally marked as scaffolds:
    without optional service dependencies, so packaging and agents can validate the surface cheaply.
 3. **Visible operator runtime** — draft/finalize lifecycle plus fingerprint-first traces for chat or
    agent workflows that need a visible plan before writes.
-4. **Genomics and SNP cross-reference layer** — dependency-light parser, QC, bundled marker
-   annotations, and confirmation-first review cards before heavier ClinVar/dbSNP/PGx integrations.
+4. **Genomics and SNP cross-reference layer** — dependency-light parser, localhost import GUI, QC,
+   bundled marker annotations, and confirmation-first review cards before heavier ClinVar/dbSNP/PGx
+   integrations.
 
 Run this anytime after install:
 

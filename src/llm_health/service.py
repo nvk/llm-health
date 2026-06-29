@@ -4,8 +4,18 @@ from dataclasses import dataclass
 from typing import Any
 
 from llm_health import __version__
-from llm_health.core.privacy import validate_profile_alias
-from llm_health.genomics import GenomicsStore, build_qc
+from llm_health.core.privacy import PrivacyError, validate_profile_alias
+from llm_health.genomics import GenomicsStore
+from llm_health.genomics.gui import (
+    genomics_crossrefs_payload,
+    genomics_qc_payload,
+    genomics_sources_payload,
+    render_genomics_import_ui,
+)
+from llm_health.genomics.workflow import (
+    import_raw_genotype_text_into_store,
+    run_crossrefs_into_store,
+)
 from llm_health.stores import LocalHealthStore
 
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -34,6 +44,13 @@ SERVICE_ROUTES: tuple[ServiceRoute, ...] = (
     ServiceRoute("GET", "/genomics/crossrefs", "Alias-scoped genomic review cards."),
     ServiceRoute("GET", "/genomics/qc", "Alias-scoped genotype QC summaries."),
     ServiceRoute("GET", "/genomics/sources", "Alias-scoped genomic source summaries."),
+    ServiceRoute("GET", "/genomics/ui", "Local genotype SNP matching GUI."),
+    ServiceRoute(
+        "POST",
+        "/genomics/import-text",
+        "Run local SNP matching on pasted/uploaded genotype text.",
+    ),
+    ServiceRoute("POST", "/genomics/crossrefs/run", "Create genomic cross-reference cards."),
 )
 
 
@@ -56,6 +73,7 @@ def _observation_to_payload(observation: Any) -> dict[str, object]:
 def build_app(store: LocalHealthStore):  # pragma: no cover - exercised when optional deps present
     try:
         from fastapi import FastAPI, HTTPException, Query
+        from fastapi.responses import HTMLResponse
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError("Install optional extra with `pip install llm-health[service]`") from exc
 
@@ -192,48 +210,65 @@ def build_app(store: LocalHealthStore):  # pragma: no cover - exercised when opt
 
     @app.get("/genomics/sources")
     def genomics_sources(profile_id: str | None = None) -> dict[str, object]:
-        profile = validate_profile_alias(profile_id) if profile_id else None
-        if profile and not store.profile_exists(profile):
-            raise HTTPException(status_code=404, detail="profile alias is not enrolled")
-        genomics_store = GenomicsStore(store.root)
-        sources = genomics_store.sources(profile)
-        variant_count = len(genomics_store.variants(profile))
-        return {
-            "count": len(sources),
-            "variant_count": variant_count,
-            "sources": [source.to_dict() for source in sources],
-            "privacy": "source summaries only; raw genetic file paths are not stored",
-        }
+        try:
+            return genomics_sources_payload(store, profile_id)
+        except PrivacyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.get("/genomics/qc")
     def genomics_qc(profile_id: str) -> dict[str, object]:
-        profile = validate_profile_alias(profile_id)
-        if not store.profile_exists(profile):
-            raise HTTPException(status_code=404, detail="profile alias is not enrolled")
-        genomics_store = GenomicsStore(store.root)
-        rows = [
-            build_qc(source, genomics_store.variants(profile, source.source_id)).to_dict()
-            for source in genomics_store.sources(profile)
-        ]
-        return {"profile_id": profile, "count": len(rows), "qc": rows}
+        try:
+            return genomics_qc_payload(store, profile_id)
+        except PrivacyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     @app.get("/genomics/crossrefs")
     def genomics_crossrefs(
         profile_id: str,
         limit: int = Query(50, ge=1, le=500),
     ) -> dict[str, object]:
-        profile = validate_profile_alias(profile_id)
-        if not store.profile_exists(profile):
-            raise HTTPException(status_code=404, detail="profile alias is not enrolled")
-        genomics_store = GenomicsStore(store.root)
-        cards = genomics_store.inferences(profile)
-        cards.sort(key=lambda item: item.created_at, reverse=True)
-        return {
-            "profile_id": profile,
-            "count": len(cards[:limit]),
-            "cards": [card.to_dict() for card in cards[:limit]],
-            "notice": "genomic cards are review artifacts, not diagnosis or prescribing",
-        }
+        try:
+            return genomics_crossrefs_payload(store, profile_id, limit=limit)
+        except PrivacyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/genomics/ui", response_class=HTMLResponse)
+    def genomics_ui() -> str:
+        return render_genomics_import_ui()
+
+    @app.post("/genomics/import-text")
+    def genomics_import_text(payload: dict[str, object]) -> dict[str, object]:
+        content = payload.get("content")
+        if not isinstance(content, str):
+            raise HTTPException(status_code=400, detail="content is required")
+        try:
+            result = import_raw_genotype_text_into_store(
+                store,
+                GenomicsStore(store.root),
+                profile_id=str(payload.get("profile_id", "")),
+                content=content,
+                source_kind=str(payload.get("source_kind") or "auto"),
+                clinical_grade=bool(payload.get("clinical_grade")),
+                accept_genetic_risk=bool(payload.get("accept_genetic_risk")),
+                run_crossref=True,
+            )
+        except (PrivacyError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return result.to_dict()
+
+    @app.post("/genomics/crossrefs/run")
+    def genomics_crossrefs_run(payload: dict[str, object]) -> dict[str, object]:
+        include_raw = payload.get("include") or ["labs", "meds", "family"]
+        include = {str(item) for item in include_raw} if isinstance(include_raw, list) else None
+        try:
+            return run_crossrefs_into_store(
+                store,
+                GenomicsStore(store.root),
+                profile_id=str(payload.get("profile_id", "")),
+                include=include,
+            )
+        except (PrivacyError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return app
 

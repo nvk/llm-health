@@ -24,6 +24,8 @@ class GenomicSource:
     assay_type: str = "genotyping_array"
     genome_build: str = "unknown"
     clinical_grade: bool = False
+    stored_variant_scope: str = "matched_allowlist_only"
+    stored_variant_count: int = 0
     consent: str = "own-risk genetic context only; not diagnostic"
     tags: list[str] = field(default_factory=lambda: [VisibleTag.CONTEXT.value])
     source_id: str | None = None

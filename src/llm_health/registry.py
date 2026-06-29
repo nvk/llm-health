@@ -150,15 +150,16 @@ CAPABILITIES: tuple[Capability, ...] = (
         capability_id="genomics",
         name="Genomics and SNP cross-reference layer",
         kind="data",
-        command="health genomics import/status/qc/annotate/crossref/pgx",
+        command="health genomics ui/import/status/qc/annotate/crossref/pgx",
         summary=(
-            "Import local raw genotype files by fingerprint, run QC, summarize bundled "
-            "SNP annotations, and create confirmation-first lab/med/family review cards."
+            "Run local SNP matching from raw genotype files, store source fingerprints "
+            "plus sparse matched findings, run QC, and create confirmation-first "
+            "lab/med/family review cards."
         ),
         module="llm_health.genomics",
         privacy=(
-            "raw genetic file paths are never stored; dense calls stay local under the "
-            "private HUB and are excluded from normal archives"
+            "raw genetic file paths are never stored; dense genome-wide calls are not "
+            "stored by default, only sparse matched SNP findings"
         ),
         external_calls="none; bundled annotation scaffold only",
         status="scaffold",

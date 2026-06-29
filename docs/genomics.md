@@ -1,8 +1,7 @@
 # Genomics and SNP cross-reference layer
 
 `health genomics` is a local-first scaffold for using SNP/genotype data as context in
-llm-health. It does **not** diagnose, prescribe, order tests, or change medication. It imports a
-raw genotype text file by fingerprint, stores normalized calls under the private HUB, runs QC, and
+llm-health. It does **not** diagnose, prescribe, order tests, or change medication. It scans raw genotype text locally by fingerprint, stores only matched SNP findings by default, runs QC, and
 creates confirmation-first review cards that can cross-reference labs, medication context, and family
 history.
 
@@ -16,13 +15,14 @@ stricter defaults:
 - imports also require `--accept-genetic-risk`;
 - raw genetic file paths and file names are never stored;
 - source summaries store a file hash, source kind, marker counts, call-rate fields, and QC flags;
-- dense calls stay under `<HUB>/genomics/variants/` and are excluded from normal `health archive`
-  snapshots because unknown root folders are skipped by the archive allowlist;
+- dense genome-wide calls are not stored by default; only matched allowlist SNP calls plus
+  confirmation-first findings are persisted;
 - outputs must say genetic context is not diagnostic and high-impact findings require confirmation.
 
 ## Commands
 
 ```sh
+health genomics ui --profile alex
 health genomics import ./synthetic-genotype.txt --profile alex --accept-genetic-risk
 health genomics status --profile alex
 health genomics qc --profile alex
@@ -33,7 +33,7 @@ health genomics explain rs1800562 --profile alex
 health genomics confirm-list --profile alex
 ```
 
-`import` currently supports simple 23andMe/Ancestry-like rows:
+`import`/GUI matching currently supports simple 23andMe/Ancestry-like rows:
 
 ```text
 rsid chromosome position genotype
@@ -44,17 +44,26 @@ Comment lines beginning with `#` are used only for source-kind/build hints such 
 GRCh37/GRCh38. The parser is dependency-free so synthetic fixtures and first-run imports work before
 installing heavier bioinformatics tools.
 
+The GUI is started with `health genomics ui`. It binds to localhost by default, opens a browser
+file-picker page, reads the selected text in the browser, runs matching locally, and persists only
+matched SNP findings by default. It does not send the browser filename/path or store dense
+genome-wide calls.
+
 ## What the scaffold does today
 
-- Parses raw genotype text rows into `VariantCall` artifacts.
-- Stores `GenomicSource` summaries and per-source variant JSONL files under the private HUB.
+- Parses raw genotype text rows locally and stores only matched allowlist `VariantCall` artifacts by
+  default.
+- Stores `GenomicSource` summaries, sparse matched allowlist SNP calls, and review findings under the
+  private HUB; dense genome-wide calls require an explicit local-only override.
 - Reports QC warnings for low call rate, duplicate markers, unknown genome build, complex/indel-like
   calls, and non-clinical-grade sources.
 - Provides a small bundled marker allowlist for early cross-reference scaffolding: HFE/iron,
   UGT1A1/bilirubin, HLA/celiac context, G6PD/hemolysis context, SLCO1B1/statin PGx, and CYP2C19 PGx.
 - Creates `GenomicInference` cards tagged as review artifacts with required confirmation gates.
-- Exposes local service smoke routes for `/genomics/sources`, `/genomics/qc`, and
-  `/genomics/crossrefs`.
+- Provides `health genomics ui`, a localhost-only browser SNP matching panel with a file picker, profile
+  selector, genetic-risk checkbox, QC summary, and cross-reference cards.
+- Exposes local service routes for `/genomics/ui`, `/genomics/import-text`, `/genomics/sources`,
+  `/genomics/qc`, `/genomics/crossrefs`, and `/genomics/crossrefs/run`.
 
 ## Deliberate limits
 
