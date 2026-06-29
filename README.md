@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.29** | Adds `health genomics` for local SNP/genotype import, QC, bundled annotation summaries, lab/med/family cross-reference cards, and confirmation-first PGx context. |
 | **0.0.28** | First-run onboarding now points users to `health ui` early so the local board is not hidden. |
 | **0.0.27** | Adds Ask parents interview template for long-form hereditary and family-pattern outreach. |
 | **0.0.26** | Adds copyable Profile interview modal for baseline, follow-up-gap, and family-history outreach drafts. |
@@ -124,6 +125,24 @@ health doctor
 Then commands such as `health review --profile rod` and `health sync-v2 ...` use that HUB by default unless `--store` is supplied.
 
 
+
+
+## Genomics and SNP context
+
+`health genomics` imports local raw genotype text files by fingerprint and keeps raw genetic file
+paths out of the HUB. It can show source QC, bundled marker annotations, confirmation-first
+lab/med/family cross-reference cards, and PGx context prompts:
+
+```sh
+health genomics import ./synthetic-genotype.txt --profile rod --accept-genetic-risk
+health genomics qc --profile rod
+health genomics crossref --profile rod
+health genomics pgx --profile rod
+health genomics confirm-list --profile rod
+```
+
+Genomic cards are own-risk review artifacts only: not diagnosis, not prescribing, not test ordering,
+and high-impact findings require clinical confirmation. See `docs/genomics.md`.
 
 ## Source vault and source audit
 

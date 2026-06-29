@@ -42,6 +42,21 @@ from llm_health.family import (
     render_family_risks,
     render_family_tree,
 )
+from llm_health.genomics import (
+    GenomicsStore,
+    build_cross_references,
+    build_qc,
+    parse_raw_genotype_file,
+)
+from llm_health.genomics.qc import render_qc
+from llm_health.genomics.review import (
+    render_annotation_summary,
+    render_confirm_list,
+    render_explain,
+    render_inferences,
+    render_pgx,
+    render_sources,
+)
 from llm_health.onboarding import (
     SOURCE_LINKS,
     SOURCE_NOTES,
@@ -553,6 +568,66 @@ def build_parser() -> argparse.ArgumentParser:
         default="all",
     )
 
+    genomics = sub.add_parser(
+        "genomics",
+        help="Import, QC, annotate, and cross-reference local genotype data",
+    )
+    genomics_sub = genomics.add_subparsers(dest="genomics_command", required=True)
+
+    genomics_import = genomics_sub.add_parser(
+        "import", help="Import a raw genotype text file without storing its path"
+    )
+    _store_arg(genomics_import)
+    _risk_arg(genomics_import)
+    _profile_arg(genomics_import)
+    genomics_import.add_argument("input", help="Local raw genotype text file to fingerprint/import")
+    genomics_import.add_argument(
+        "--source-kind",
+        choices=["auto", "23andme", "ancestrydna", "raw_genotype", "clinical_lab"],
+        default="auto",
+    )
+    genomics_import.add_argument(
+        "--clinical-grade",
+        action="store_true",
+        help="Mark source as clinical-grade; default treats it as unconfirmed context",
+    )
+    genomics_import.add_argument(
+        "--accept-genetic-risk",
+        action="store_true",
+        help="Required: acknowledge genetic privacy/family implications for this import",
+    )
+
+    for name, help_text in [
+        ("status", "Show imported genomic sources and counts"),
+        ("qc", "Show genotype source QC summaries"),
+        ("annotate", "Summarize bundled local marker annotations"),
+        ("crossref", "Create genotype x labs/meds/family review cards"),
+        ("pgx", "Show pharmacogenomics review context"),
+        ("confirm-list", "Show confirmation-first genomic review items"),
+    ]:
+        command = genomics_sub.add_parser(name, help=help_text)
+        _store_arg(command)
+        _risk_arg(command)
+        _profile_arg(command)
+        if name == "crossref":
+            command.add_argument(
+                "--with",
+                dest="include",
+                default="labs,meds,family",
+                help="Comma-separated cross-reference domains: labs,meds,family",
+            )
+            command.add_argument(
+                "--no-store",
+                action="store_true",
+                help="Print cards without persisting them",
+            )
+
+    genomics_explain = genomics_sub.add_parser("explain", help="Explain one rsID for a profile")
+    _store_arg(genomics_explain)
+    _risk_arg(genomics_explain)
+    _profile_arg(genomics_explain)
+    genomics_explain.add_argument("rsid")
+
     capabilities = sub.add_parser("capabilities", help="Show llm-health feature map metadata")
     capabilities.add_argument(
         "--kind",
@@ -710,11 +785,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     store_path = resolve_store_path(args.store)
     store = LocalHealthStore(store_path)
     exists = store_path.exists()
+    try:
+        config_exists = config.config_path.exists()
+    except OSError:
+        config_exists = False
     print(f"llm-health {__version__}")
     print(f"python: {sys.version.split()[0]}")
-    print(
-        f"config: {config.config_path} ({'exists' if config.config_path.exists() else 'not found'})"
-    )
+    print(f"config: {config.config_path} ({'exists' if config_exists else 'not found'})")
     print(f"hub: {config.hub_path or '[not set]'}")
     print(f"wiki_root: {config.wiki_root or '[not set]'}")
     print(f"store: {store.root} ({'exists' if exists else 'not initialized'})")
@@ -1503,6 +1580,92 @@ def cmd_plugin_paths(args: argparse.Namespace) -> int:
     return 0
 
 
+def _genomics_store_from_args(
+    args: argparse.Namespace,
+) -> tuple[LocalHealthStore, GenomicsStore, str]:
+    store = _private_store_from_args(args)
+    profile = _profile_for_store(args, store)
+    genomics_store = GenomicsStore(store.root)
+    genomics_store.init()
+    return store, genomics_store, profile
+
+
+def cmd_genomics(args: argparse.Namespace) -> int:
+    health_store, genomics_store, profile = _genomics_store_from_args(args)
+    command = args.genomics_command
+    if command == "import":
+        if not args.accept_genetic_risk:
+            print(
+                "genetic risk acknowledgement required: rerun with --accept-genetic-risk",
+                file=sys.stderr,
+            )
+            return 4
+        result = parse_raw_genotype_file(
+            args.input,
+            profile_id=profile,
+            source_kind=args.source_kind,
+            clinical_grade=args.clinical_grade,
+        )
+        genomics_store.upsert_source(result.source)
+        genomics_store.replace_variants(result.source.source_id or "", result.variants)
+        qc = build_qc(result.source, result.variants)
+        print("Imported genomic source")
+        print(f"source_id: {result.source.source_id}")
+        print(f"source_kind: {result.source.source_kind}")
+        print(f"markers: {result.source.marker_count}")
+        print(f"call_rate: {result.source.call_rate:.3f}")
+        print("warnings: " + (", ".join(qc.warnings) if qc.warnings else "none"))
+        print("privacy: raw genetic file path not stored; source is fingerprinted only")
+        print("genetic_data_notice: context only; not diagnostic; confirm before action")
+        return 0
+
+    sources = genomics_store.sources(profile)
+    variants = genomics_store.variants(profile)
+    inferences = genomics_store.inferences(profile)
+
+    if command == "status":
+        print(render_sources(sources, len(variants), len(inferences)))
+        return 0
+    if command == "qc":
+        qc_rows = [
+            build_qc(source, genomics_store.variants(profile, source.source_id))
+            for source in sources
+        ]
+        print(render_qc(qc_rows))
+        return 0
+    if command == "annotate":
+        print(render_annotation_summary(variants))
+        return 0
+    if command == "crossref":
+        include = {item.strip() for item in args.include.split(",") if item.strip()}
+        cards = build_cross_references(health_store, genomics_store, profile, include=include)
+        stored = 0
+        if not args.no_store:
+            for card in cards:
+                if genomics_store.upsert_inference(card):
+                    stored += 1
+        print(render_inferences(cards))
+        print(f"stored_genomic_inferences: {stored}")
+        return 0
+    if command == "pgx":
+        cards = build_cross_references(
+            health_store, genomics_store, profile, include={"meds"}
+        )
+        pgx_cards = [card for card in cards if card.finding_type == "pgx"]
+        for card in pgx_cards:
+            genomics_store.upsert_inference(card)
+        all_cards = genomics_store.inferences(profile) + pgx_cards
+        dedup = {card.inference_id: card for card in all_cards}
+        print(render_pgx(variants, list(dedup.values())))
+        return 0
+    if command == "confirm-list":
+        print(render_confirm_list(inferences))
+        return 0
+    if command == "explain":
+        print(render_explain(args.rsid, genomics_store.variants_by_rsid(profile, args.rsid)))
+        return 0
+    raise ValueError(f"unknown genomics command: {command}")
+
 def cmd_capabilities(args: argparse.Namespace) -> int:
     kind = None if args.kind == "all" else args.kind
     if args.json:
@@ -1774,6 +1937,7 @@ def main(argv: list[str] | None = None) -> int:
         "test-battery": cmd_test_battery,
         "plan-research": cmd_plan_research,
         "plugin-paths": cmd_plugin_paths,
+        "genomics": cmd_genomics,
         "capabilities": cmd_capabilities,
         "deid": cmd_deid,
         "service": cmd_service,

@@ -145,6 +145,26 @@ CAPABILITIES: tuple[Capability, ...] = (
         tests=["tests/test_cli.py::CliTests::test_family_history_tree_and_risk_notes"],
         docs=["docs/family-history.md", "docs/recipes.md"],
     ),
+
+    Capability(
+        capability_id="genomics",
+        name="Genomics and SNP cross-reference layer",
+        kind="data",
+        command="health genomics import/status/qc/annotate/crossref/pgx",
+        summary=(
+            "Import local raw genotype files by fingerprint, run QC, summarize bundled "
+            "SNP annotations, and create confirmation-first lab/med/family review cards."
+        ),
+        module="llm_health.genomics",
+        privacy=(
+            "raw genetic file paths are never stored; dense calls stay local under the "
+            "private HUB and are excluded from normal archives"
+        ),
+        external_calls="none; bundled annotation scaffold only",
+        status="scaffold",
+        tests=["tests/test_genomics.py"],
+        docs=["docs/genomics.md", "docs/feature-map.md"],
+    ),
     Capability(
         capability_id="diagnostic-gaps",
         name="Gap and test-candidate layer",

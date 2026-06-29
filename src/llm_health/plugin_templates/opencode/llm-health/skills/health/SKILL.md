@@ -85,6 +85,13 @@ health source-vault add <file-or-folder> --wiki-root <health-assessments-topic-r
 health source-vault list
 health source-audit run --profile rod --focus medium
 health source-audit report
+health genomics import <raw-genotype-text> --profile rod --accept-genetic-risk
+health genomics status --profile rod
+health genomics qc --profile rod
+health genomics annotate --profile rod
+health genomics crossref --profile rod
+health genomics pgx --profile rod
+health genomics confirm-list --profile rod
 health enroll --alias sol --birth-year 2018 --role child
 health enroll --alias lele --birth-year 2026 --birth-month 1 --role child
 health profiles
@@ -168,6 +175,14 @@ shareable packets. The doctor audience is a concise clinician brief with source 
 active flags, pending rows, gaps, context notes, and mini-trends. The family audience is
 plain-language with watch items and questions to ask. Reports are alias-only local PDFs;
 do not add raw source filenames or paths, and remind users to verify original sources.
+
+
+### Genomics and SNP context
+
+Use `health genomics` only as confirmation-first context. Raw genetic file paths are not stored;
+imports require `--accept-genetic-risk`; output is not diagnosis, prescribing, or test ordering. Use
+QC and bundled annotations first, then `crossref` to create lab/med/family review cards and `pgx` for
+clinician/pharmacist discussion prompts. High-impact findings need clinical confirmation.
 
 ### New results
 

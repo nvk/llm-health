@@ -55,9 +55,15 @@ def default_config_path() -> Path:
 
 def load_config(config_path: str | Path | None = None) -> HealthConfig:
     path = expand_leading_tilde(config_path) if config_path else default_config_path()
-    if not path.exists():
+    try:
+        if not path.exists():
+            return HealthConfig(config_path=path)
+        data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    except OSError:
+        # Read-only CLI paths such as `doctor` must not crash when the default
+        # config location is blocked by the host environment. Treat it as unset;
+        # write paths still surface errors through `save_config`.
         return HealthConfig(config_path=path)
-    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
     hub_raw = data.get("hub_path") or data.get("resolved_path")
     wiki_raw = data.get("wiki_root") or data.get("health_assessments_wiki_root")
     hub = expand_leading_tilde(hub_raw) if hub_raw else None

@@ -15,7 +15,7 @@ health capabilities --json
 | Class | What it covers | Commands |
 |---|---|---|
 | Core | Setup, agreement, onboarding, runtime checks, public registry | `health doctor`, `health agreement`, `health welcome`, `health capabilities` |
-| Data | Alias profiles, observations, self-reported context, family history, v2 sync | `health enroll`, `health profiles`, `health ingest-note`, `health self-report`, `health family`, `health sync-v2` |
+| Data | Alias profiles, observations, self-reported context, family history, genomics, v2 sync | `health enroll`, `health profiles`, `health ingest-note`, `health self-report`, `health family`, `health genomics`, `health sync-v2` |
 | Review | Quick reviews, result lookup, diagnostic gaps, test candidates, least-harm cards | `health review`, `health result`, `health close-gaps`, `health test-battery`, `health least-harm` |
 | Research | Research queues and broad category-agent consults | `health plan-research`, `health specialists`, `health consult` |
 | UI | Static local Assessment board | `health ui` |
@@ -32,10 +32,12 @@ health capabilities --json
   redacted staging text plus entity metadata hashes.
 - `health service` binds localhost by default and refuses non-local binds unless the user explicitly
   passes `--allow-nonlocal`.
+- `health genomics` stores source fingerprints and local variant calls only under the private HUB;
+  raw genetic file paths are not stored, and genomic artifacts are review context, not diagnosis.
 
 ## Current scaffolds
 
-Two capabilities are intentionally marked as scaffolds:
+Several capabilities are intentionally marked as scaffolds:
 
 1. **De-identification adapter** — local regex backend, safe entity metadata, preview/apply staging.
    Future adapters can add OCR/PDF parsers, NER, or user-supplied de-id services without changing the
@@ -44,6 +46,8 @@ Two capabilities are intentionally marked as scaffolds:
    without optional service dependencies, so packaging and agents can validate the surface cheaply.
 3. **Visible operator runtime** — draft/finalize lifecycle plus fingerprint-first traces for chat or
    agent workflows that need a visible plan before writes.
+4. **Genomics and SNP cross-reference layer** — dependency-light parser, QC, bundled marker
+   annotations, and confirmation-first review cards before heavier ClinVar/dbSNP/PGx integrations.
 
 Run this anytime after install:
 

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.0.29 - 2026-06-28
+
+- Added dependency-light `health genomics` commands for raw genotype import by fingerprint, source QC, bundled marker annotation summaries, and confirmation-first cross-reference cards.
+- Added local genomics storage under the private HUB without raw path/name storage, plus local service routes, capability registry metadata, docs, recipes, and plugin skill guidance.
+- Added regression tests for genetic-risk acknowledgement, path-free imports, QC, annotations, PGx context, and confirmation-list flows.
+
 ## 0.0.28 - 2026-06-09
 
 - Added early `health ui` guidance to the welcome/onboarding flow so new users know how to open the local Assessment Board after setup or import.

@@ -80,3 +80,8 @@ health protocol-review --profile alex "flu shot"
 - "@health close gaps" → `health close-gaps` and explain context-first questions plus candidates.
 - "@health make doctor/family PDFs" → `health report --profile <alias> --audience both`.
 - "@health run liver consult" → `health consult --specialist liver_biliary_gi`.
+
+
+## Genomics/SNP context
+
+For raw genotype context, use `health genomics import <raw-genotype-text> --profile <alias> --accept-genetic-risk`, then `health genomics qc`, `health genomics crossref`, `health genomics pgx`, and `health genomics confirm-list`. Never treat raw genotype or DTC data as diagnosis, prescribing, or test ordering; keep raw file paths out of artifacts and require clinical confirmation for high-impact findings.

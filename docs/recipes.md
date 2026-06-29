@@ -67,6 +67,23 @@ Use `--no-open` for automation:
 health ui --no-open --output ~/health/v2-web
 ```
 
+
+## Import raw genotype context
+
+Use a local raw genotype text file only after accepting the extra genetic-risk prompt. The file path
+is not stored; the source is fingerprinted and dense calls stay under the private HUB.
+
+```sh
+health genomics import ./synthetic-genotype.txt --profile alex --accept-genetic-risk
+health genomics qc --profile alex
+health genomics annotate --profile alex
+health genomics crossref --profile alex
+health genomics pgx --profile alex
+health genomics confirm-list --profile alex
+```
+
+Genomics output is confirmation-first context, not diagnosis or medication advice.
+
 ## Smoke-test the future local API
 
 ```sh
