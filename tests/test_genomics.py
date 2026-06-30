@@ -17,6 +17,7 @@ from llm_health.genomics import (
 )
 from llm_health.genomics.gui import render_genomics_import_ui
 from llm_health.genomics.knowledge import MARKERS, MATCHABLE_MARKERS, marker_count_by_runtime
+from llm_health.genomics.pipeline import genomics_review_payload
 from llm_health.genomics.workflow import matched_allowlist_variants
 from llm_health.service import route_manifest
 from llm_health.stores import LocalHealthStore
@@ -95,7 +96,7 @@ class GenomicsTests(unittest.TestCase):
             self.assertEqual(result.variants[-1].call_status, "no_call")
             qc = build_qc(result.source, result.variants)
             self.assertIn("call_rate_below_95_percent", qc.warnings)
-            self.assertIn("consumer_or_unconfirmed_source_not_diagnostic", qc.warnings)
+            self.assertIn("consumer_or_unconfirmed_source_review", qc.warnings)
 
     def test_parse_raw_genotype_text_and_gui_import_workflow_privacy(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -131,7 +132,19 @@ class GenomicsTests(unittest.TestCase):
             self.assertEqual(summary.stored_variant_scope, "matched_allowlist_only")
             self.assertEqual(summary.stored_variant_count, 4)
             self.assertEqual(len(genomics_store.variants("alex")), 4)
-            self.assertIn("not stored", summary.to_dict()["privacy"])
+            payload = summary.to_dict()
+            self.assertIn("not stored", payload["privacy"])
+            self.assertIn("patient_summary", payload)
+            self.assertIn("CONFIRM_FIRST", payload["patient_summary"]["tags"])
+            self.assertIn("This profile", payload["patient_summary"]["lead"])
+            self.assertNotIn("Rod", payload["patient_summary"]["lead"])
+            self.assertTrue(
+                all("patient_summary" in inference for inference in payload["inferences"])
+            )
+            review = genomics_review_payload(health_store, "alex")
+            self.assertIn("patient_summary", review)
+            self.assertIn("warning_details", review["qc"]["qc"][0])
+            self.assertIn("patient_summary", review["crossrefs"]["cards"][0])
             stored_sources = (Path(tmp) / "genomics" / "sources.jsonl").read_text()
             self.assertNotIn(str(path), stored_sources)
             self.assertNotIn(path.name, stored_sources)
@@ -195,7 +208,7 @@ class GenomicsTests(unittest.TestCase):
             self.assertIn("stored_variant_scope: matched_allowlist_only", imported.stdout)
             self.assertIn("stored_variants: 4", imported.stdout)
             self.assertIn("dense genome-wide calls are not stored by default", imported.stdout)
-            self.assertIn("not diagnostic", imported.stdout)
+            self.assertIn("review_note: context only", imported.stdout)
             self.assertNotIn(str(source), imported.stdout)
             self.assertNotIn(source.name, imported.stdout)
 
@@ -279,7 +292,7 @@ class GenomicsTests(unittest.TestCase):
             self.assertIn("SLCO1B1", crossref.stdout)
             self.assertIn("Family history/context matched", crossref.stdout)
             self.assertIn("confirmation_required: true", crossref.stdout)
-            self.assertIn("This is not medical advice", crossref.stdout)
+            self.assertIn("Review note: use these as discussion prompts", crossref.stdout)
             self.assertIn("stored_genomic_inferences:", crossref.stdout)
 
             status = self.run_cli("genomics", "status", "--profile", "alex", store=tmp)
@@ -287,12 +300,12 @@ class GenomicsTests(unittest.TestCase):
             self.assertIn("sources: 1", status.stdout)
             self.assertIn("variants: 4", status.stdout)
             self.assertIn("stored_variant_scope: matched_allowlist_only", status.stdout)
-            self.assertIn("not diagnostic", status.stdout)
+            self.assertIn("review_note: context only", status.stdout)
 
             qc = self.run_cli("genomics", "qc", "--profile", "alex", store=tmp)
             self.assertEqual(qc.returncode, 0, qc.stderr)
             self.assertIn("call_rate: 0.800", qc.stdout)
-            self.assertIn("consumer_or_unconfirmed_source_not_diagnostic", qc.stdout)
+            self.assertIn("consumer_or_unconfirmed_source_review", qc.stdout)
 
             annotated = self.run_cli("genomics", "annotate", "--profile", "alex", store=tmp)
             self.assertEqual(annotated.returncode, 0, annotated.stderr)
@@ -310,12 +323,12 @@ class GenomicsTests(unittest.TestCase):
             pgx = self.run_cli("genomics", "pgx", "--profile", "alex", store=tmp)
             self.assertEqual(pgx.returncode, 0, pgx.stderr)
             self.assertIn("Pharmacogenomics context", pgx.stdout)
-            self.assertIn("do not change medication", pgx.stdout)
+            self.assertIn("medication decisions with clinical review", pgx.stdout)
 
             confirm = self.run_cli("genomics", "confirm-list", "--profile", "alex", store=tmp)
             self.assertEqual(confirm.returncode, 0, confirm.stderr)
             self.assertIn("Genomics confirmation list", confirm.stdout)
-            self.assertIn("Confirm high-impact findings", confirm.stdout)
+            self.assertIn("Confirm decision-relevant findings", confirm.stdout)
 
     def test_genomics_service_routes_manifest(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -324,6 +337,7 @@ class GenomicsTests(unittest.TestCase):
             self.assertIn("/genomics/sources", result.stdout)
             self.assertIn("/genomics/qc", result.stdout)
             self.assertIn("/genomics/crossrefs", result.stdout)
+            self.assertIn("/genomics/review", result.stdout)
             self.assertIn("/genomics/ui", result.stdout)
             self.assertIn("/genomics/import-text", result.stdout)
             self.assertIn("/genomics/crossrefs/run", result.stdout)
@@ -335,10 +349,21 @@ class GenomicsTests(unittest.TestCase):
         self.assertIn("acceptRisk", html)
         self.assertIn("/genomics/import-text", html)
         self.assertIn("/genomics/crossrefs/run", html)
-        self.assertIn("does not send the selected file name/path", html)
+        self.assertIn("/genomics/review", html)
+        self.assertIn("does not send the browser filename", html)
+        self.assertIn("form-stack", html)
+        self.assertIn("checkbox-group", html)
+        self.assertIn("review-table", html)
+        self.assertIn("cardPatientSummary", html)
+        self.assertIn("patientSummary", html)
+        self.assertIn("renderPatientSummary", html)
+        self.assertIn("patient_summary", html)
+        self.assertNotIn("Genetic data warning", html)
+        self.assertNotIn("Plain-language summary", html)
         self.assertNotIn("/Users/", html)
         self.assertNotIn("Mobile Documents", html)
         self.assertIn("GET /genomics/ui", routes)
+        self.assertIn("GET /genomics/review", routes)
         self.assertIn("POST /genomics/import-text", routes)
         self.assertIn("POST /genomics/crossrefs/run", routes)
 

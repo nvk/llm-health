@@ -149,10 +149,10 @@ class DiagnosticGapEngine:
         flagged_ids = [obs.observation_id for obs in flagged]
         return DiagnosticGap(
             profile_id=profile,
-            title="Flagged-result context gap",
+            title="Source-note context gap",
             gap_type="confounder_gap",
             rationale=(
-                "At least one source-flagged result lacks enough context to interpret confidently. "
+                "At least one source-noted result lacks enough context to interpret confidently. "
                 "Ask context first; do not reflexively order a broad panel."
             ),
             priority=0.62,

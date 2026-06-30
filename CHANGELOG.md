@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.0.32 - 2026-06-30
+
+- Softened warning/disclaimer wording across the assessment board, genomics GUI, CLI review notes, reports, and docs while preserving explicit review tags and confirmation-first framing.
+- Routed the genomics GUI status, QC notes, cross-reference cards, and patient summary through a single server-side `/genomics/review` pipeline payload.
+- Added server-generated patient-friendly genomics summaries and softer QC note labels for source quality/context review.
+
 ## 0.0.31 - 2026-06-30
 
 - Expanded the bundled genomics marker catalog to 805 release-pinned clinical rows with source-family, source URL, context-gate, confirmation-test, reporting-tier, and runtime-default metadata.

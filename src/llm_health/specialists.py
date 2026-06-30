@@ -700,7 +700,7 @@ def _generic_findings(
         latest = max(observations, key=lambda obs: (obs.observed_on, obs.marker))
         findings.append(
             f"Latest relevant observation: {latest.marker} on {latest.observed_on}; "
-            f"status {'flagged' if latest.is_flagged else 'not source-flagged/pending-aware'}."
+            f"status {'flagged' if latest.is_flagged else 'not source-noted/pending-aware'}."
         )
     else:
         findings.append(

@@ -9,7 +9,7 @@ def render_sources(sources: list[GenomicSource], variant_count: int, inference_c
     lines.append(f"sources: {len(sources)}")
     lines.append(f"variants: {variant_count}")
     lines.append(f"inferences: {inference_count}")
-    lines.append("genetic_data_notice: context only; not diagnostic; confirm before action")
+    lines.append("review_note: context only; confirm decision-relevant findings")
     lines.append("")
     for source in sources:
         lines.append(f"source_id: {source.source_id}")
@@ -42,7 +42,9 @@ def render_inferences(inferences: list[GenomicInference]) -> str:
         for evidence in item.evidence:
             lines.append(f"- {evidence}")
         lines.append("")
-    lines.append("This is not medical advice, diagnosis, prescribing, or test ordering.")
+    lines.append(
+        "Review note: use these as discussion prompts; confirm anything decision-relevant."
+    )
     return "\n".join(lines).rstrip()
 
 
@@ -76,7 +78,7 @@ def render_explain(rsid: str, variants: list[VariantCall]) -> str:
     else:
         lines.append("No observed call stored for this profile.")
     lines.append("")
-    lines.append("genetic_data_notice: context only; not diagnostic; confirm before action")
+    lines.append("review_note: context only; confirm decision-relevant findings")
     return "\n".join(lines)
 
 
@@ -89,7 +91,7 @@ def render_confirm_list(inferences: list[GenomicInference]) -> str:
     for item in items:
         lines.append(f"- {item.title} · {item.discussion_target} · {item.confidence}")
     lines.append("")
-    lines.append("Confirm high-impact findings with clinical-grade testing before action.")
+    lines.append("Confirm decision-relevant findings with clinical-grade testing when appropriate.")
     return "\n".join(lines)
 
 
@@ -120,5 +122,8 @@ def render_pgx(variants: list[VariantCall], inferences: list[GenomicInference]) 
     for card in pgx_cards:
         lines.append(f"- {card.title}: {card.summary}")
     lines.append("")
-    lines.append("PGx cards are discussion prompts only; do not change medication without review.")
+    lines.append(
+        "PGx cards are medication-review prompts; make medication decisions with clinical "
+        "review."
+    )
     return "\n".join(lines).rstrip()

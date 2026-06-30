@@ -44,7 +44,7 @@ from llm_health.family import (
 )
 from llm_health.genomics import (
     GenomicsStore,
-    build_cross_references,
+    build_crossrefs_for_review,
     build_qc,
     import_raw_genotype_text_into_store,
 )
@@ -1691,13 +1691,13 @@ def cmd_genomics(args: argparse.Namespace) -> int:
         print(f"stored_variant_scope: {summary.stored_variant_scope}")
         print(f"stored_variants: {summary.stored_variant_count}")
         print(f"call_rate: {summary.source.call_rate:.3f}")
-        print("warnings: " + (", ".join(summary.qc.warnings) if summary.qc.warnings else "none"))
+        print("qc_notes: " + (", ".join(summary.qc.warnings) if summary.qc.warnings else "none"))
         print(f"stored_genomic_inferences: {summary.stored_inferences}")
         print(
             "privacy: raw genetic file path, browser filename, raw text, and dense genome-wide "
             "calls are not stored by default"
         )
-        print("genetic_data_notice: context only; not diagnostic; confirm before action")
+        print("review_note: context only; confirm decision-relevant findings")
         return 0
 
     sources = genomics_store.sources(profile)
@@ -1719,7 +1719,12 @@ def cmd_genomics(args: argparse.Namespace) -> int:
         return 0
     if command == "crossref":
         include = {item.strip() for item in args.include.split(",") if item.strip()}
-        cards = build_cross_references(health_store, genomics_store, profile, include=include)
+        cards = build_crossrefs_for_review(
+            health_store,
+            genomics_store,
+            profile_id=profile,
+            include=include,
+        )
         stored = 0
         if not args.no_store:
             for card in cards:
@@ -1729,8 +1734,11 @@ def cmd_genomics(args: argparse.Namespace) -> int:
         print(f"stored_genomic_inferences: {stored}")
         return 0
     if command == "pgx":
-        cards = build_cross_references(
-            health_store, genomics_store, profile, include={"meds"}
+        cards = build_crossrefs_for_review(
+            health_store,
+            genomics_store,
+            profile_id=profile,
+            include={"meds"},
         )
         pgx_cards = [card for card in cards if card.finding_type == "pgx"]
         for card in pgx_cards:

@@ -205,8 +205,8 @@
       statusChipHtml('CONTEXT', profileLabel(), 'review', 'Show the review queue for this profile'),
       statusChipHtml('OBSERVED', `${numeric.toLocaleString()} plotted-capable`, 'timeline', 'Jump to timeline evidence'),
       sourceFlags
-        ? statusChipHtml('QA_ISSUE', `${sourceFlags} source flags`, 'flags', 'Show flagged source rows')
-        : statusChipHtml('OBSERVED', 'no source flags', 'sources', 'Show source rows'),
+        ? statusChipHtml('QA_ISSUE', `${sourceFlags} source notes`, 'flags', 'Show source-review rows')
+        : statusChipHtml('OBSERVED', 'no source notes', 'sources', 'Show source rows'),
       pending ? statusChipHtml('DATA_GAP', `${pending} pending`, 'pending', 'Show pending source rows') : ''
     ].join('');
   }
@@ -220,7 +220,7 @@
     const dates = rows.map(r => r.date).filter(Boolean).sort();
     byId('summaryGrid').innerHTML = [
       metric('Rows', rows.length.toLocaleString(), `${numeric.length.toLocaleString()} numeric · ${derived.toLocaleString()} derived`),
-      metric('Attention', (flagged + pending).toLocaleString(), `${flagged} source flags · ${pending} pending`),
+      metric('Review notes', (flagged + pending).toLocaleString(), `${flagged} source notes · ${pending} pending`),
       metric('Span', dates.length ? `${dates[0]} → ${dates.at(-1)}` : '—', state.range),
       metric('Weight', Number.isFinite(context.currentWeightKg) ? `${context.currentWeightKg} kg` : '—', context.currentWeightDate || 'no context')
     ].join('');
@@ -246,8 +246,8 @@
       cards.push(reviewCard('2 · Attention queue', attention.map(r => [attentionTag(r), attentionText(r)]), 'qa-card'));
     } else {
       cards.push(reviewCard('2 · Attention queue', [
-        ['OBSERVED', 'No source-flagged or pending rows in this filtered view.'],
-        ['QA_ISSUE', 'Absence of flags is not absence of risk; it only reflects the loaded source ranges and current filters.']
+        ['OBSERVED', 'No source-noted or pending rows in this filtered view.'],
+        ['QA_ISSUE', 'No source notes are showing in the current filters.']
       ], 'ok-card'));
     }
     const wearableSummary = wearableReviewLines();
@@ -259,9 +259,9 @@
         ['WEARABLE_CONTEXT', 'If Apple/fitness data exists, add daily rollups before using activity/recovery context.']
       ], 'gap-card'));
     }
-    cards.push(reviewCard('4 · Interpretation guardrails', [
-      ['QA_ISSUE', 'Source flag rings mirror lab/source flags; they are not independently judged by the app.'],
-      ['DATA_GAP', 'Pending/non-numeric results stay in review and source rows, but are not plotted as dots.'],
+    cards.push(reviewCard('4 · Review notes', [
+      ['QA_ISSUE', 'Source-note rings mirror source ranges; the app does not re-score them.'],
+      ['DATA_GAP', 'Pending/non-numeric results stay in review and source rows, but are not plotted.'],
       ['CONTEXT', 'Interpret with symptoms, meds, supplements, illness, fasting, exercise, and specimen/method changes.']
     ], 'qa-card'));
     cards.push(reviewCard('5 · Timeline posture', [
@@ -315,7 +315,7 @@
     let tag = 'OBSERVED';
     if (!rows.length) { status = 'data-gap'; label = 'no rows in view'; tag = 'DATA_GAP'; }
     else if (pending) { status = 'monitor'; label = `${pending} pending`; tag = 'DATA_GAP'; }
-    else if (sourceFlags) { status = 'needs-review'; label = `${sourceFlags} source flags`; tag = 'QA_ISSUE'; }
+    else if (sourceFlags) { status = 'needs-review'; label = `${sourceFlags} source notes`; tag = 'QA_ISSUE'; }
     else if (derived) { status = 'monitor'; label = `${derived} derived`; tag = 'DERIVED'; }
     return { category, rows: rows.length, numeric: numeric.length, pending, sourceFlags, derived, series: series.size, latest, status, label, tag };
   }
@@ -345,7 +345,7 @@
     return [
       briefItem('View scope', 'CONTEXT', `${profileLabel()} · ${state.category} · ${state.range}`, `Search${state.search ? `: ${state.search}` : ': none'}`),
       briefItem('Plot semantics', 'OBSERVED', `${groups.length.toLocaleString()} series · ${span}`, modeNote),
-      briefItem('Source state', flags ? 'QA_ISSUE' : pending ? 'DATA_GAP' : 'OBSERVED', `${flags} flags · ${pending} pending`, 'Flag rings are source flags; pending rows are not plotted dots.'),
+      briefItem('Source state', flags ? 'QA_ISSUE' : pending ? 'DATA_GAP' : 'OBSERVED', `${flags} source notes · ${pending} pending`, 'Flag rings come from source ranges; pending rows are not plotted.'),
       briefItem('Context overlays', state.showWeight ? 'CONTEXT' : 'DATA_GAP', state.showWeight ? `weight on · ${weightRows.length} rows` : 'weight off', 'Weight is normalized when overlaid on lab units.')
     ].join('');
   }

@@ -2,14 +2,13 @@
 
 `health report` creates local, de-identified PDFs for two audiences:
 
-- **doctor**: concise clinician brief with active source flags, pending/nonnumeric rows,
+- **doctor**: concise clinician brief with active source notes, pending/nonnumeric rows,
   diagnostic gaps, context/family notes, mini-trends, and a recent source-row appendix.
 - **family**: plain-language summary with what to know first, watch items, questions to ask,
   family/history context, recent results, and small trend visuals.
 
-The reports are generated with a dependency-free local PDF writer. They are not medical advice,
-not a diagnosis, not a prescription, and not an order. They are discussion packets; verify against
-original source records before decisions.
+The reports are generated with a dependency-free local PDF writer. They are local discussion
+packets for review and follow-up planning; verify against original source records before decisions.
 
 ## Examples
 
@@ -36,7 +35,7 @@ health report --profile rod --audience doctor --output ~/Desktop/rod-doctor-pack
   Apple device/source names.
 - Source-vault references are summarized as counts and hash/source-id status only.
 - Pending rows are shown as questions, not numeric evidence.
-- Older source flags are demoted when a later comparable normal row exists.
+- Older source notes are demoted when a later comparable normal row exists.
 
 ## Audience split
 

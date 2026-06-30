@@ -89,7 +89,7 @@ rod_domains AS (
   SELECT
     'rod', 'lipids', 'Lipids / ASCVD context', 'needs_review', 'high', 'OBSERVED',
     'Persistent LDL/non-HDL/ApoB burden remains a longitudinal review item.',
-    'Repeated LDL/non-HDL/ApoB rows are source-flagged or above common risk-enhancing anchors.',
+    'Repeated LDL/non-HDL/ApoB rows are source-noted or above common risk-enhancing anchors.',
     'Clinician ASCVD risk inputs: BP treatment, smoking, diabetes, family history, Lp(a).',
     2
   UNION ALL

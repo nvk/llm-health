@@ -9,10 +9,15 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from llm_health import __version__
-from llm_health.core.privacy import PrivacyError, validate_profile_alias
+from llm_health.core.privacy import PrivacyError
 from llm_health.stores import LocalHealthStore
 
-from .qc import build_qc
+from .pipeline import (
+    genomics_crossrefs_payload,
+    genomics_qc_payload,
+    genomics_review_payload,
+    genomics_sources_payload,
+)
 from .store import GenomicsStore
 from .workflow import import_raw_genotype_text_into_store, run_crossrefs_into_store
 
@@ -43,40 +48,94 @@ def render_genomics_import_ui() -> str:
       --line: #d8e0ea;
       --accent: #2f6fb2;
       --warn: #b7791f;
-      --danger: #b64035;
+      --danger: #9b6a5e;
       --good: #1f8a5b;
       --shadow: 0 12px 28px rgba(30, 42, 62, .07);
+      --focus: color-mix(in srgb, var(--accent), transparent 68%);
+      --space-1: .25rem;
+      --space-2: .5rem;
+      --space-3: .75rem;
+      --space-4: 1rem;
+      --space-5: 1.25rem;
+      --space-6: 1.5rem;
+      --space-7: 2rem;
       --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
       --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); }
-    main { max-width: 1180px; margin: 0 auto; padding: 1.5rem; }
-    header, section { background: var(--paper); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); padding: 1rem; margin-bottom: 1rem; }
-    header { display: flex; justify-content: space-between; gap: 1rem; align-items: start; }
-    h1, h2, h3 { margin: 0; letter-spacing: -.02em; }
-    p { color: var(--muted); line-height: 1.45; }
-    label { display: block; color: var(--muted); font-weight: 780; margin: .7rem 0 .35rem; }
-    select, input[type="file"] { width: 100%; min-height: 2.55rem; border: 1px solid var(--line); border-radius: 12px; padding: .45rem .6rem; background: var(--paper); color: var(--ink); }
-    input[type="checkbox"] { transform: scale(1.1); margin-right: .4rem; }
-    button { border: 0; border-radius: 12px; background: var(--accent); color: #fff; padding: .7rem .95rem; font-weight: 850; cursor: pointer; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.45; }
+    main { max-width: 1280px; margin: 0 auto; padding: clamp(var(--space-4), 2.4vw, var(--space-7)); }
+    header, section { background: var(--paper); border: 1px solid var(--line); border-radius: 22px; box-shadow: var(--shadow); padding: clamp(var(--space-5), 2vw, var(--space-7)); margin-bottom: var(--space-5); }
+    header { display: flex; justify-content: space-between; gap: var(--space-6); align-items: flex-start; }
+    h1, h2, h3 { margin: 0; letter-spacing: -.02em; line-height: 1.08; }
+    h1 { font-size: clamp(1.75rem, 2.6vw, 2.45rem); }
+    h2 { font-size: clamp(1.35rem, 2.1vw, 1.85rem); margin-bottom: var(--space-4); }
+    h3 { margin-bottom: var(--space-2); }
+    p { color: var(--muted); line-height: 1.55; margin: var(--space-3) 0 0; }
+    header p:first-child { margin: 0 0 var(--space-2); }
+    header p:last-child, .privacy-note { max-width: 76ch; }
+    label { display: block; color: var(--muted); font-weight: 780; margin: 0 0 var(--space-2); }
+    select, input[type="file"] { width: 100%; min-height: 2.85rem; border: 1px solid var(--line); border-radius: 14px; padding: .55rem .75rem; background: var(--paper); color: var(--ink); font: inherit; }
+    input[type="checkbox"] { width: 1.1rem; height: 1.1rem; margin: .12rem 0 0; accent-color: var(--accent); flex: 0 0 auto; }
+    select:focus-visible, input[type="file"]:focus-visible, input[type="checkbox"]:focus-visible, button:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+    button { min-height: 2.75rem; border: 0; border-radius: 14px; background: var(--accent); color: #fff; padding: .75rem 1.05rem; font-weight: 850; cursor: pointer; font: inherit; transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
+    button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(47, 111, 178, .18); }
     button.secondary { background: var(--paper-2); color: var(--ink); border: 1px solid var(--line); }
     button:disabled { opacity: .55; cursor: not-allowed; }
-    .grid { display: grid; grid-template-columns: minmax(300px, .8fr) minmax(340px, 1.2fr); gap: 1rem; }
-    .actions { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-top: .9rem; }
-    .notice { border-left: 4px solid var(--warn); background: color-mix(in srgb, var(--warn), transparent 91%); }
-    .status { min-height: 2rem; font-family: var(--mono); color: var(--muted); white-space: pre-wrap; }
-    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: .75rem; }
-    .card { border: 1px solid var(--line); border-radius: 14px; background: var(--paper-2); padding: .8rem; }
+    .grid { display: grid; grid-template-columns: minmax(340px, .9fr) minmax(460px, 1.35fr); gap: var(--space-5); align-items: start; }
+    .form-stack { display: grid; gap: var(--space-4); }
+    .field { min-width: 0; }
+    .checkbox-group { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--paper-2), transparent 35%); }
+    .checkbox-row { display: flex; align-items: flex-start; gap: var(--space-3); color: var(--ink); line-height: 1.35; margin: 0; }
+    .privacy-note { margin: calc(var(--space-1) * -1) 0 0; }
+    .actions { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; padding-top: var(--space-1); }
+    .status { min-height: 3rem; margin: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: 14px; background: var(--paper-2); font-family: var(--mono); color: var(--muted); white-space: pre-wrap; }
+    .cards { overflow-x: auto; margin-top: var(--space-4); }
+    .card { border: 1px solid var(--line); border-radius: 16px; background: var(--paper-2); padding: var(--space-4); }
+    .table-wrap { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--paper); }
+    table.review-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .9rem; }
+    .review-table th { text-align: left; color: var(--muted); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; background: var(--paper-2); padding: .8rem .9rem; border-bottom: 1px solid var(--line); }
+    .review-table td { vertical-align: top; padding: .95rem .9rem; border-bottom: 1px solid var(--line); line-height: 1.4; }
+    .review-table tr:last-child td { border-bottom: 0; }
+    .review-table th:nth-child(1), .review-table td:nth-child(1) { width: 23%; }
+    .review-table th:nth-child(2), .review-table td:nth-child(2) { width: 18%; }
+    .review-table th:nth-child(3), .review-table td:nth-child(3) { width: 16%; }
+    .review-table th:nth-child(4), .review-table td:nth-child(4) { width: 27%; }
+    .review-table th:nth-child(5), .review-table td:nth-child(5) { width: 16%; }
+    .marker-title { display: block; font-weight: 900; color: var(--ink); margin-bottom: .35rem; }
+    .plain-summary { color: var(--ink); font-weight: 850; line-height: 1.35; margin-bottom: .55rem; }
+    .technical-summary { color: var(--muted); line-height: 1.45; }
+    .muted { color: var(--muted); }
+    .compact-tags .tag { font-size: .62rem; margin-bottom: .15rem; }
+    details.evidence summary { color: var(--accent); cursor: pointer; font-weight: 850; }
+    details.evidence ul { margin: .4rem 0 0; padding-left: 1rem; }
+    details.evidence li { margin-bottom: .35rem; }
     .tag { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: .12rem .45rem; margin: .1rem .2rem .2rem 0; font-size: .7rem; font-weight: 850; letter-spacing: .05em; }
     .tag.inference { color: var(--accent); }
-    .tag.gap, .tag.warn { color: var(--danger); }
+    .tag.gap, .tag.warn { color: var(--warn); }
     .tag.context { color: var(--warn); }
-    .metric { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem; }
-    .metric div { border: 1px solid var(--line); border-radius: 14px; padding: .75rem; background: var(--paper-2); }
-    .metric strong { display: block; font-family: var(--mono); font-size: 1.25rem; margin-top: .25rem; }
+    .metric { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+    .metric div { min-height: 5.4rem; border: 1px solid var(--line); border-radius: 16px; padding: var(--space-4); background: var(--paper-2); display: flex; flex-direction: column; justify-content: center; }
+    .metric span { color: var(--ink); }
+    .metric strong { display: block; font-family: var(--mono); font-size: 1.35rem; margin-top: .25rem; letter-spacing: -.02em; }
+    #warnings { display: grid; gap: var(--space-3); margin-top: var(--space-4); }
+    #warnings .card p { margin-top: var(--space-3); }
+    .patient-summary { margin-top: var(--space-4); border: 1px solid var(--line); border-radius: 18px; padding: var(--space-5); background: linear-gradient(135deg, color-mix(in srgb, var(--accent), transparent 92%), var(--paper-2)); }
+    .patient-summary h3 { font-size: 1.08rem; margin: var(--space-2) 0 0; }
+    .patient-summary .summary-lead { color: var(--ink); font-size: 1.02rem; font-weight: 850; line-height: 1.45; margin-top: var(--space-3); }
+    .patient-summary ul { display: grid; gap: var(--space-2); margin: var(--space-3) 0 0; padding-left: 1.1rem; color: var(--muted); }
+    .patient-summary li { padding-left: var(--space-1); }
     code { font-family: var(--mono); }
-    @media (max-width: 800px) { .grid, .metric { grid-template-columns: 1fr; } header { display: block; } }
+    @media (max-width: 900px) {
+      main { padding: var(--space-4); }
+      header, section { border-radius: 18px; padding: var(--space-5); }
+      .grid, .metric { grid-template-columns: 1fr; }
+      header { display: block; }
+      header button { margin-top: var(--space-4); }
+      .actions { display: grid; }
+      .actions button { width: 100%; }
+      .review-table { min-width: 860px; }
+    }
   </style>
 </head>
 <body>
@@ -92,50 +151,56 @@ def render_genomics_import_ui() -> str:
       </div>
     </header>
 
-    <section class="notice">
-      <h2>Genetic data warning</h2>
-      <p>This is experimental local software. Genomic cards are context only: not diagnosis, not prescribing, not test ordering, and not a clinician relationship. High-impact findings need clinical-grade confirmation. The browser does not send the selected file name/path; the local server stores a source fingerprint and matched SNP findings only by default, not dense genome-wide calls.</p>
-    </section>
-
     <div class="grid">
       <section>
         <h2>Upload local genotype text</h2>
-        <label for="profile">Profile alias</label>
-        <select id="profile"></select>
+        <div class="form-stack">
+          <div class="field">
+            <label for="profile">Profile alias</label>
+            <select id="profile"></select>
+          </div>
 
-        <label for="sourceKind">Source kind</label>
-        <select id="sourceKind">
-          <option value="auto">Auto-detect</option>
-          <option value="23andme">23andMe</option>
-          <option value="ancestrydna">AncestryDNA</option>
-          <option value="raw_genotype">Raw genotype</option>
-          <option value="clinical_lab">Clinical lab</option>
-        </select>
+          <div class="field">
+            <label for="sourceKind">Source kind</label>
+            <select id="sourceKind">
+              <option value="auto">Auto-detect</option>
+              <option value="23andme">23andMe</option>
+              <option value="ancestrydna">AncestryDNA</option>
+              <option value="raw_genotype">Raw genotype</option>
+              <option value="clinical_lab">Clinical lab</option>
+            </select>
+          </div>
 
-        <label><input type="checkbox" id="clinicalGrade"> Mark as clinical-grade source</label>
-        <label><input type="checkbox" id="acceptRisk"> I accept the genetic privacy/family-risk implications for this local import</label>
+          <div class="checkbox-group">
+            <label class="checkbox-row"><input type="checkbox" id="clinicalGrade"><span>Mark as clinical-grade source</span></label>
+            <label class="checkbox-row"><input type="checkbox" id="acceptRisk"><span>I accept the genetic privacy/family-risk implications for this local import</span></label>
+          </div>
 
-        <label for="file">Raw genotype .txt file</label>
-        <input id="file" type="file" accept=".txt,.tsv,text/plain">
-        <p>The page reads text locally and posts it to this localhost process. It intentionally does not send the browser filename.</p>
+          <div class="field">
+            <label for="file">Raw genotype .txt file</label>
+            <input id="file" type="file" accept=".txt,.tsv,text/plain">
+          </div>
+          <p class="privacy-note">The page reads text locally and posts it to this localhost process. It intentionally does not send the browser filename.</p>
 
-        <div class="actions">
-          <button type="button" id="importBtn">Import and cross-reference</button>
-          <button type="button" class="secondary" id="crossrefBtn">Run cross-reference only</button>
+          <div class="actions">
+            <button type="button" id="importBtn">Import and cross-reference</button>
+            <button type="button" class="secondary" id="crossrefBtn">Run cross-reference only</button>
+          </div>
+          <pre class="status" id="status">Loading profiles…</pre>
         </div>
-        <pre class="status" id="status">Loading profiles…</pre>
       </section>
 
       <section>
         <h2>Source / QC summary</h2>
         <div class="metric" id="metrics"></div>
         <div id="warnings"></div>
+        <div class="patient-summary" id="patientSummary" aria-live="polite"></div>
       </section>
     </div>
 
     <section>
       <h2>Cross-reference cards</h2>
-      <p>Cards are discussion prompts only. They are tagged as <code>INFERENCE</code> / <code>DATA_GAP</code> and require confirmation before action.</p>
+      <p>Cards are review notes. Tags such as <code>INFERENCE</code> / <code>DATA_GAP</code> show context and follow-up items; confirm anything that would change decisions.</p>
       <div class="cards" id="cards"></div>
     </section>
   </main>
@@ -167,13 +232,8 @@ def render_genomics_import_ui() -> str:
       if (!state.profile) return;
       try {
         setStatus(`Profile: ${state.profile}`);
-        const [sources, qc, crossrefs] = await Promise.all([
-          getJson(`/genomics/sources?profile_id=${encodeURIComponent(state.profile)}`),
-          getJson(`/genomics/qc?profile_id=${encodeURIComponent(state.profile)}`),
-          getJson(`/genomics/crossrefs?profile_id=${encodeURIComponent(state.profile)}`),
-        ]);
-        renderMetrics(sources, qc);
-        renderCards(crossrefs.cards || []);
+        const review = await getJson(`/genomics/review?profile_id=${encodeURIComponent(state.profile)}`);
+        renderReview(review);
       } catch (err) {
         setStatus(`Refresh failed: ${err.message}`);
       }
@@ -196,7 +256,7 @@ def render_genomics_import_ui() -> str:
           content
         });
         setStatus(`Matched source ${payload.source.source_id}\nmarkers_scanned: ${payload.source.marker_count}\nstored_variants: ${payload.stored_variant_count}\nstorage_scope: ${payload.stored_variant_scope}\ncall_rate: ${payload.source.call_rate.toFixed(3)}\nstored_cards: ${payload.stored_inferences}\nprivacy: ${payload.privacy}`);
-        renderMetrics({ count: 1, variant_count: payload.stored_variant_count, sources: [payload.source] }, { qc: [payload.qc] });
+        renderMetrics({ count: 1, variant_count: payload.stored_variant_count, sources: [payload.source] }, { qc: [payload.qc] }, payload.patient_summary);
         renderCards(payload.inferences || []);
       } catch (err) {
         setStatus(`Import failed: ${err.message}`);
@@ -213,6 +273,7 @@ def render_genomics_import_ui() -> str:
           include: ['labs', 'meds', 'family']
         });
         setStatus(`Cross-reference complete.\ncards: ${payload.count}\nstored_new_or_changed: ${payload.stored_inferences}`);
+        $('patientSummary').innerHTML = renderPatientSummary(payload.patient_summary);
         renderCards(payload.cards || []);
       } catch (err) {
         setStatus(`Cross-reference failed: ${err.message}`);
@@ -221,7 +282,7 @@ def render_genomics_import_ui() -> str:
       }
     }
 
-    function renderMetrics(sources, qcPayload) {
+    function renderMetrics(sources, qcPayload, summary) {
       const rows = qcPayload.qc || [];
       const first = rows[0] || {};
       $('metrics').innerHTML = [
@@ -229,17 +290,54 @@ def render_genomics_import_ui() -> str:
         metric('Stored SNPs', sources.variant_count ?? first.stored_variant_count ?? 0),
         metric('Call rate', Number.isFinite(first.call_rate) ? first.call_rate.toFixed(3) : '—'),
       ].join('');
-      $('warnings').innerHTML = rows.length ? rows.map(row => `<div class="card"><strong>${esc(row.source_id)}</strong><p>${(row.warnings || []).map(w => `<span class="tag warn">${esc(w)}</span>`).join('') || '<span class="tag">none</span>'}</p></div>`).join('') : '<p>No genomic sources yet.</p>';
+      $('warnings').innerHTML = rows.length ? rows.map(row => `<div class="card"><strong>${esc(row.source_id)}</strong><p>${warningTags(row)}</p></div>`).join('') : '<p>No genomic sources yet.</p>';
+      $('patientSummary').innerHTML = renderPatientSummary(summary);
+    }
+
+    function renderReview(review) {
+      renderMetrics(review.sources || {}, review.qc || {}, review.patient_summary);
+      renderCards((review.crossrefs || {}).cards || []);
+    }
+
+    function warningTags(row) {
+      const details = row.warning_details || [];
+      if (details.length) return details.map(item => `<span class="tag warn" title="${escAttr(item.code || '')}">${esc(item.label || item.code)}</span>`).join('');
+      return (row.warnings || []).map(w => `<span class="tag warn">${esc(w)}</span>`).join('') || '<span class="tag">none</span>';
+    }
+
+    function renderPatientSummary(summary) {
+      if (!summary) return '<p class="summary-lead">Summary will appear after the local review pipeline runs.</p>';
+      const tags = (summary.tags || []).map(tag => `<span class="tag ${tag === 'DATA_GAP' ? 'gap' : tag === 'CONTEXT' ? 'context' : ''}">${esc(tag)}</span>`).join('');
+      const bullets = (summary.bullets || []).map(item => `<li>${esc(item)}</li>`).join('');
+      return `${tags}<p class="summary-lead">${esc(summary.lead || '')}</p>${bullets ? `<ul>${bullets}</ul>` : ''}`;
     }
 
     function renderCards(cards) {
-      $('cards').innerHTML = cards.length ? cards.map(card => `<article class="card">
-        <h3>${esc(card.title)}</h3>
-        <p>${(card.tags || []).map(tag => `<span class="tag ${tag === 'INFERENCE' ? 'inference' : tag === 'DATA_GAP' ? 'gap' : ''}">${esc(tag)}</span>`).join('')}</p>
-        <p><strong>${esc(card.finding_type)}</strong> · ${esc(card.confidence)} · confirmation required</p>
-        <p>${esc(card.summary)}</p>
-        <ul>${(card.evidence || []).map(item => `<li>${esc(item)}</li>`).join('')}</ul>
-      </article>`).join('') : '<p>No genomic cross-reference cards found yet.</p>';
+      if (!cards.length) {
+        $('cards').innerHTML = '<p>No genomic cross-reference cards found yet.</p>';
+        return;
+      }
+      $('cards').innerHTML = `<div class="table-wrap"><table class="review-table">
+        <thead><tr>
+          <th>Marker</th>
+          <th>Tags</th>
+          <th>Type / confidence</th>
+          <th>Summary</th>
+          <th>Evidence</th>
+        </tr></thead>
+        <tbody>${cards.map(card => `<tr>
+          <td><span class="marker-title">${esc(card.title)}</span><span class="muted">confirmation required</span></td>
+          <td class="compact-tags">${(card.tags || []).map(tag => `<span class="tag ${tag === 'INFERENCE' ? 'inference' : tag === 'DATA_GAP' ? 'gap' : ''}">${esc(tag)}</span>`).join('')}</td>
+          <td><strong>${esc(card.finding_type)}</strong><br><span class="muted">${esc(card.confidence)}</span></td>
+          <td><div class="plain-summary">${esc(cardPatientSummary(card))}</div><div class="technical-summary">${esc(card.summary)}</div></td>
+          <td><details class="evidence"><summary>${(card.evidence || []).length} item(s)</summary><ul>${(card.evidence || []).map(item => `<li>${esc(item)}</li>`).join('')}</ul></details></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+    }
+
+
+    function cardPatientSummary(card) {
+      return card.patient_summary || card.summary || 'Review card generated by the local pipeline.';
     }
 
     function metric(label, value) { return `<div><span>${esc(label)}</span><strong>${esc(String(value))}</strong></div>`; }
@@ -262,65 +360,6 @@ def render_genomics_import_ui() -> str:
 </html>
 """
 
-
-def genomics_sources_payload(store: LocalHealthStore, profile_id: str | None = None) -> dict[str, Any]:
-    profile = validate_profile_alias(profile_id) if profile_id else None
-    store.init()
-    if profile and not store.profile_exists(profile):
-        raise PrivacyError(f"profile alias {profile!r} is not enrolled")
-    genomics_store = GenomicsStore(store.root)
-    sources = genomics_store.sources(profile)
-    variant_count = len(genomics_store.variants(profile))
-    return {
-        "count": len(sources),
-        "variant_count": variant_count,
-        "sources": [_source_payload(source) for source in sources],
-        "privacy": (
-            "source summaries and matched SNP findings only; raw genetic file paths "
-            "and dense genome-wide calls are not stored by default"
-        ),
-    }
-
-
-def genomics_qc_payload(store: LocalHealthStore, profile_id: str) -> dict[str, Any]:
-    profile = validate_profile_alias(profile_id)
-    store.init()
-    if not store.profile_exists(profile):
-        raise PrivacyError(f"profile alias {profile!r} is not enrolled")
-    genomics_store = GenomicsStore(store.root)
-    rows = [
-        build_qc(source, genomics_store.variants(profile, source.source_id)).to_dict()
-        for source in genomics_store.sources(profile)
-    ]
-    return {"profile_id": profile, "count": len(rows), "qc": rows}
-
-
-def _source_payload(source) -> dict[str, Any]:
-    payload = source.to_dict()
-    payload["call_rate"] = source.call_rate
-    return payload
-
-
-def genomics_crossrefs_payload(
-    store: LocalHealthStore,
-    profile_id: str,
-    *,
-    limit: int = 50,
-) -> dict[str, Any]:
-    profile = validate_profile_alias(profile_id)
-    store.init()
-    if not store.profile_exists(profile):
-        raise PrivacyError(f"profile alias {profile!r} is not enrolled")
-    genomics_store = GenomicsStore(store.root)
-    cards = genomics_store.inferences(profile)
-    cards.sort(key=lambda item: item.created_at, reverse=True)
-    cards = cards[:limit]
-    return {
-        "profile_id": profile,
-        "count": len(cards),
-        "cards": [card.to_dict() for card in cards],
-        "notice": "genomic cards are review artifacts, not diagnosis or prescribing",
-    }
 
 
 class GenomicsGuiServer(ThreadingHTTPServer):
@@ -361,6 +400,16 @@ class GenomicsGuiHandler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/genomics/qc":
                 self._send_json(genomics_qc_payload(self.server.health_store, profile or ""))
+                return
+            if parsed.path == "/genomics/review":
+                limit = int(_first(query.get("limit")) or "50")
+                self._send_json(
+                    genomics_review_payload(
+                        self.server.health_store,
+                        profile or "",
+                        limit=max(1, min(500, limit)),
+                    )
+                )
                 return
             if parsed.path == "/genomics/crossrefs":
                 limit = int(_first(query.get("limit")) or "50")

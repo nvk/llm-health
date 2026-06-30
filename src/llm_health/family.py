@@ -355,7 +355,7 @@ def create_family_risk_notes(store: LocalHealthStore, profile_id: str) -> list[H
                     title=f"Family history: {event.condition}",
                     summary=(
                         f"{relation} {relative_id} has {event.condition} marked {event.status}. "
-                        "Treat as a risk/context clue, not a diagnosis."
+                        "Use as family context and confirm details before acting."
                     ),
                     priority=priority,
                     signals=[f"{relation} {relative_id}: {event.condition} ({event.status})"],

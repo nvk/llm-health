@@ -11,8 +11,8 @@
   --accent-2: #174a7c;
   --soft: #e7f0fb;
   --good: #1f8a5b;
-  --warn: #b7791f;
-  --danger: #b64035;
+  --warn: #9a6a1a;
+  --danger: #9b6a5e;
   --info: #2f6fb2;
   --weight: #c86f1d;
   --band: rgba(31,138,91,.12);
@@ -34,8 +34,8 @@
   --accent-2: #ffd47a;
   --soft: #3a2a12;
   --good: #57c58d;
-  --warn: #e0ad55;
-  --danger: #e07065;
+  --warn: #d2a24d;
+  --danger: #d08a78;
   --info: #f2b84b;
   --weight: #f0a45e;
   --band: rgba(87,197,141,.14);
@@ -134,7 +134,7 @@ a { color: var(--accent-2); font-weight: 750; }
 .app { padding: 1.2rem clamp(1rem, 3vw, 2rem) 3rem; min-width: 0; }
 .topbar { display: flex; justify-content: space-between; gap: 1rem; align-items: start; margin-bottom: 1rem; }
 .lede { margin: .35rem 0 0; color: var(--muted); max-width: 90ch; line-height: 1.45; }
-.own-risk-line { margin: .35rem 0 0; color: var(--warn); font-size: .86rem; font-weight: 720; }
+.own-risk-line { margin: .35rem 0 0; color: var(--muted); font-size: .86rem; font-weight: 650; }
 .muted { color: var(--muted); font-size: .82rem; margin-top: .2rem; }
 .top-actions { display: flex; gap: .55rem; flex-wrap: wrap; justify-content: end; align-items: start; max-width: 520px; }
 .profile-state { display: flex; gap: .35rem; flex-wrap: wrap; justify-content: end; flex-basis: 100%; min-height: 1.65rem; }
@@ -151,7 +151,7 @@ a { color: var(--accent-2); font-weight: 750; }
 .sticky-head { position: sticky; top: 0; z-index: 2; background: color-mix(in srgb, var(--surface), transparent 5%); padding-top: .2rem; }
 .legend { display: flex; gap: .7rem; flex-wrap: wrap; color: var(--muted); font-size: .82rem; font-weight: 650; }
 .swatch { display: inline-block; width: 18px; height: 8px; margin-right: .3rem; border-radius: 999px; vertical-align: middle; background: var(--accent); }
-.swatch.flag { border: 2px solid var(--danger); background: transparent; height: 12px; width: 12px; }
+.swatch.flag { border: 2px solid var(--warn); background: transparent; height: 12px; width: 12px; }
 .swatch.weight { background: var(--weight); }
 .swatch.band { background: var(--band); border: 1px solid var(--good); }
 .view-brief {
@@ -178,7 +178,7 @@ a { color: var(--accent-2); font-weight: 750; }
   background: var(--surface-2);
   padding: .8rem;
 }
-.domain-card.needs-review { border-left-color: var(--danger); }
+.domain-card.needs-review { border-left-color: var(--warn); }
 .domain-card.monitor { border-left-color: var(--warn); }
 .domain-card.covered { border-left-color: var(--good); }
 .domain-card.data-gap { border-left-color: var(--muted); border-style: dashed; }
@@ -203,13 +203,13 @@ button.domain-card:hover {
 .review-card { border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); padding: .85rem; }
 .review-card strong { display: block; margin-bottom: .45rem; }
 .review-card div { line-height: 1.42; margin: .25rem 0; }
-.review-card.gap-card { border-color: color-mix(in srgb, var(--danger), var(--line) 55%); }
+.review-card.gap-card { border-color: color-mix(in srgb, var(--warn), var(--line) 65%); }
 .review-card.qa-card { border-color: color-mix(in srgb, var(--warn), var(--line) 55%); }
 .review-card.ok-card { border-color: color-mix(in srgb, var(--good), var(--line) 60%); }
 .tag { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: .12rem .45rem; margin: .1rem .25rem .2rem 0; font-size: .68rem; font-weight: 850; letter-spacing: .06em; white-space: nowrap; }
 .tag.obs { color: var(--good); }
 .tag.context { color: var(--weight); }
-.tag.gap, .tag.flag { color: var(--danger); }
+.tag.gap, .tag.flag { color: var(--warn); }
 .tag.derived { color: var(--warn); }
 .tag.qa { color: var(--warn); }
 .tag.wearable, .tag.inference { color: var(--info); }
@@ -226,14 +226,14 @@ button.tag-action:hover {
 }
 button.tag-action.obs { color: var(--good); }
 button.tag-action.context { color: var(--weight); }
-button.tag-action.gap, button.tag-action.flag { color: var(--danger); }
+button.tag-action.gap, button.tag-action.flag { color: var(--warn); }
 button.tag-action.derived, button.tag-action.qa { color: var(--warn); }
 button.tag-action.wearable, button.tag-action.inference { color: var(--info); }
 :root[data-theme="dark"] button.tag-action { color: var(--muted); }
 :root[data-theme="dark"] button.tag-action.obs { color: var(--good); }
 :root[data-theme="dark"] button.tag-action.context { color: var(--weight); }
 :root[data-theme="dark"] button.tag-action.gap,
-:root[data-theme="dark"] button.tag-action.flag { color: var(--danger); }
+:root[data-theme="dark"] button.tag-action.flag { color: var(--warn); }
 :root[data-theme="dark"] button.tag-action.derived,
 :root[data-theme="dark"] button.tag-action.qa { color: var(--warn); }
 :root[data-theme="dark"] button.tag-action.wearable,
@@ -259,7 +259,7 @@ svg { display: block; width: 100%; height: auto; }
 .overlay-series { stroke-width: 2.1; opacity: .86; }
 .weight-line { fill: none; stroke: var(--weight); stroke-width: 2.2; stroke-dasharray: 5 4; }
 .point { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
-.point.flagged { stroke: var(--danger); stroke-width: 3; }
+.point.flagged { stroke: var(--warn); stroke-width: 2.4; }
 .weight-point { fill: var(--weight); stroke: var(--surface); stroke-width: 2; }
 .band { fill: var(--band); }
 .tick-label, .point-label { fill: var(--muted); font: 11px var(--mono); }

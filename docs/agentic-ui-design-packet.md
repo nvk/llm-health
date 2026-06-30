@@ -33,13 +33,13 @@ Controls are secondary. The default screen must already be useful.
 ## Static v2 dashboard requirements
 
 - Own-risk notice in the shell.
-- Profile-state strip: selected alias, plotted-capable row count, source flags, pending count.
+- Profile-state strip: selected alias, plotted-capable row count, source notes, pending count.
 - Domain map before charts.
 - Review cards that include explicit no-wearable-data states.
 - View brief above timelines that explains scope, plot semantics, source state, and overlays.
 - Stack = raw units; overlay = normalized comparison, visibly tagged `INFERENCE` / normalized.
 - Pending/non-numeric rows are never plotted as dots.
-- Source flag rings are labeled as source flags.
+- Source note rings are labeled as source notes.
 
 ## Privacy release checklist
 

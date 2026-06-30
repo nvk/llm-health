@@ -227,8 +227,7 @@ def build_app(theme: str | ThemeMode = ThemeMode.LIGHT, duckdb_path: Path | None
         pn.Column(
             "## Review controls",
             pn.pane.Markdown(
-                "`OWN-RISK` Private local briefing; not diagnosis, medical advice, "
-                "orders, prescriptions, or a clinician relationship."
+                "`OWN-RISK` Private local briefing for source review and follow-up planning."
             ),
             pn.pane.Markdown(
                 "**Workflow:** Review queue → domain map → timeline evidence → "
@@ -494,10 +493,10 @@ def _latest_flags_table(repo: HealthRepository, profile: str):
     df = repo.latest_lab_flags(profile)
     if df.empty:
         return pn.pane.HTML(
-            _status_card("Latest source flags", "No source-flagged lab rows for this profile.")
+            _status_card("Latest source notes", "No source-noted lab rows for this profile.")
         )
     return pn.Column(
-        "### Latest source-flagged labs",
+        "### Latest source notes",
         pn.widgets.Tabulator(df, page_size=8, pagination="local", sizing_mode="stretch_width"),
     )
 
@@ -528,15 +527,15 @@ def _overview_cards(repo: HealthRepository, profile: str):
                 f"{summary['latest_lab_observations']} observations",
             )
         ),
-        pn.pane.HTML(_metric_card("QA issues", summary["qa_issues"], "review before inference")),
+        pn.pane.HTML(_metric_card("QA notes", summary["qa_issues"], "source rows to review")),
         ncols=4,
     )
     caveat = pn.pane.HTML(
         _status_card(
-            "Inference contract",
-            "Experimental own-risk review layer. This app separates lab observations, wearable "
-            "context, derived rollups, QA issues, and inference cards. Apple Health record-level "
-            "rows are not loaded by default.",
+            "Review contract",
+            "Local review layer. This app separates lab observations, wearable context, "
+            "derived rollups, QA notes, and inference cards. Apple Health record-level rows "
+            "are not loaded by default.",
             ["OWN-RISK", "OBSERVED", "DERIVED", "WEARABLE_CONTEXT", "QA_ISSUE"],
         )
     )
@@ -942,9 +941,9 @@ def _analysis_table(repo: HealthRepository, profile: str):
 def _qa_table(repo: HealthRepository):
     df = repo.qa_issues()
     if df.empty:
-        return pn.pane.HTML(_status_card("No QA issues", "No current QA issues found."))
+        return pn.pane.HTML(_status_card("No QA notes", "No current source-review notes found."))
     return pn.Column(
-        "### QA issues",
+        "### QA notes",
         pn.widgets.Tabulator(df, page_size=12, pagination="local", sizing_mode="stretch_width"),
     )
 

@@ -10,6 +10,7 @@ from .crossref import build_cross_references
 from .importers import parse_raw_genotype_text
 from .knowledge import MATCHABLE_MARKERS
 from .models import GenomicInference, GenomicQC, GenomicSource
+from .patient_summary import build_patient_summary, inference_payload_with_patient_summary
 from .qc import build_qc
 from .store import GenomicsStore
 
@@ -32,12 +33,22 @@ class GenomicsImportSummary:
             "stored_variant_scope": self.stored_variant_scope,
             "stored_variant_count": self.stored_variant_count,
             "stored_inferences": self.stored_inferences,
-            "inferences": [inference.to_dict() for inference in self.inferences],
+            "inferences": [
+                inference_payload_with_patient_summary(inference)
+                for inference in self.inferences
+            ],
+            "patient_summary": build_patient_summary(
+                profile_id=self.source.profile_id,
+                source_count=1,
+                marker_count=self.stored_variant_count,
+                qc_rows=[self.qc],
+                cards=self.inferences,
+            ),
             "privacy": (
                 "raw genetic text, file path, browser filename, and dense genome-wide calls "
                 "are not stored by default"
             ),
-            "notice": "genomic artifacts are context only, not diagnosis or prescribing",
+            "notice": "genomic artifacts are context notes; confirm decision-relevant findings",
         }
 
 
@@ -125,11 +136,7 @@ def run_crossrefs_into_store(
     profile_id: str,
     include: set[str] | None = None,
 ) -> dict[str, Any]:
-    profile = validate_profile_alias(profile_id)
-    health_store.init()
-    if not health_store.profile_exists(profile):
-        raise PrivacyError(f"profile alias {profile!r} is not enrolled; run `health enroll` first")
-    genomics_store.init()
+    profile = _validated_genomics_profile(health_store, genomics_store, profile_id)
     cards = build_cross_references(
         health_store,
         genomics_store,
@@ -144,6 +151,47 @@ def run_crossrefs_into_store(
         "profile_id": profile,
         "count": len(cards),
         "stored_inferences": stored,
-        "cards": [card.to_dict() for card in cards],
-        "notice": "genomic cards are review artifacts, not diagnosis or prescribing",
+        "cards": [inference_payload_with_patient_summary(card) for card in cards],
+        "patient_summary": build_patient_summary(
+            profile_id=profile,
+            source_count=len(genomics_store.sources(profile)),
+            marker_count=len(genomics_store.variants(profile)),
+            qc_rows=[
+                build_qc(source, genomics_store.variants(profile, source.source_id))
+                for source in genomics_store.sources(profile)
+            ],
+            cards=cards,
+        ),
+        "notice": "genomic cards are context notes; confirm decision-relevant findings",
     }
+
+
+def build_crossrefs_for_review(
+    health_store: LocalHealthStore,
+    genomics_store: GenomicsStore,
+    *,
+    profile_id: str,
+    include: set[str] | None = None,
+) -> list[GenomicInference]:
+    """Validate stores/profile, then build deterministic genomics review cards."""
+
+    profile = _validated_genomics_profile(health_store, genomics_store, profile_id)
+    return build_cross_references(
+        health_store,
+        genomics_store,
+        profile,
+        include=include or {"labs", "meds", "family"},
+    )
+
+
+def _validated_genomics_profile(
+    health_store: LocalHealthStore,
+    genomics_store: GenomicsStore,
+    profile_id: str,
+) -> str:
+    profile = validate_profile_alias(profile_id)
+    health_store.init()
+    if not health_store.profile_exists(profile):
+        raise PrivacyError(f"profile alias {profile!r} is not enrolled; run `health enroll` first")
+    genomics_store.init()
+    return profile

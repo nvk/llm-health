@@ -6,11 +6,12 @@ from typing import Any
 from llm_health import __version__
 from llm_health.core.privacy import PrivacyError, validate_profile_alias
 from llm_health.genomics import GenomicsStore
-from llm_health.genomics.gui import (
+from llm_health.genomics.gui import render_genomics_import_ui
+from llm_health.genomics.pipeline import (
     genomics_crossrefs_payload,
     genomics_qc_payload,
+    genomics_review_payload,
     genomics_sources_payload,
-    render_genomics_import_ui,
 )
 from llm_health.genomics.workflow import (
     import_raw_genotype_text_into_store,
@@ -43,6 +44,7 @@ SERVICE_ROUTES: tuple[ServiceRoute, ...] = (
     ServiceRoute("GET", "/family/risks", "Generated hereditary/household context notes."),
     ServiceRoute("GET", "/genomics/crossrefs", "Alias-scoped genomic review cards."),
     ServiceRoute("GET", "/genomics/qc", "Alias-scoped genotype QC summaries."),
+    ServiceRoute("GET", "/genomics/review", "Combined genomics UI/review pipeline payload."),
     ServiceRoute("GET", "/genomics/sources", "Alias-scoped genomic source summaries."),
     ServiceRoute("GET", "/genomics/ui", "Local genotype SNP matching GUI."),
     ServiceRoute(
@@ -229,6 +231,16 @@ def build_app(store: LocalHealthStore):  # pragma: no cover - exercised when opt
     ) -> dict[str, object]:
         try:
             return genomics_crossrefs_payload(store, profile_id, limit=limit)
+        except PrivacyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/genomics/review")
+    def genomics_review(
+        profile_id: str,
+        limit: int = Query(50, ge=1, le=500),
+    ) -> dict[str, object]:
+        try:
+            return genomics_review_payload(store, profile_id, limit=limit)
         except PrivacyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 

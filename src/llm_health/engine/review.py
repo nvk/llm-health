@@ -136,8 +136,8 @@ class ReviewEngine:
             cards.append(
                 QuickReviewCard(
                     profile_id=profile,
-                    title="Flagged result(s) need review",
-                    summary=summary or "One or more observations carried source flags.",
+                    title="Source-noted result(s) for review",
+                    summary=summary or "One or more observations have source notes to review.",
                     priority=0.85,
                     triggers=[ReviewTrigger.FLAGGED_RESULT.value],
                     related_observation_ids=[obs.observation_id for obs in flagged],

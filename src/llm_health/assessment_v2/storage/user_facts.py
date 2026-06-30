@@ -165,7 +165,8 @@ The user provided a same-day current weight for `{profile_id}` ({role}):
 
 ## Guardrails
 
-- This is a weight measurement/context point, not a lab result and not medical advice.
+- This is a weight measurement/context point; use it as context alongside
+  appropriate clinical review.
 - No direct identifiers are stored in this note.
 - Full birth date remains intentionally omitted; age context continues to use birth year only.
 """,

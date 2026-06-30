@@ -166,12 +166,26 @@ def _summary_from_row(row: dict[str, str]) -> str:
     notes = _clean(row.get("notes"))
     pieces = []
     if trait:
-        pieces.append(f"{trait} marker match is clinical context only.")
+        pieces.append(f"{trait} marker match is a review/context item.")
     if gate:
-        pieces.append(gate)
+        pieces.append(_soften_catalog_note(gate))
     if notes:
-        pieces.append(notes)
-    return " ".join(pieces) or "Genomic marker match is clinical context only."
+        pieces.append(_soften_catalog_note(notes))
+    return " ".join(pieces) or "Genomic marker match is a review/context item."
+
+
+def _soften_catalog_note(text: str) -> str:
+    normalized = text.lower()
+    if "pgx/context marker" in normalized and "raw match alone" in normalized:
+        return "Use as a medication/context review item; confirm if it could affect a decision."
+    if "allele-definition marker" in normalized and "specialized logic" in normalized:
+        return (
+            "Allele-definition marker for matching/routing; deeper interpretation uses "
+            "specialized tools and clinical context."
+        )
+    if text == "Confirm clinically before action.":
+        return "Confirm if decision-relevant."
+    return text
 
 
 def _marker_from_row(row: dict[str, str]) -> MarkerKnowledge:
@@ -192,7 +206,7 @@ def _marker_from_row(row: dict[str, str]) -> MarkerKnowledge:
         effect_allele=_clean(row.get("risk_allele")),
         label=_label_from_row(row, topic, finding_type),
         summary=_summary_from_row(row),
-        evidence_gate=confirmation or context_gate or "Confirm clinically before action.",
+        evidence_gate=confirmation or context_gate or "Confirm if decision-relevant.",
         discussion_target=_clean(row.get("discussion_target")) or "clinician or genetic counselor",
         confidence=_confidence_from_row(row),
         clinical_reference=_clean(row.get("clinical_reference")),

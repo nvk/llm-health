@@ -5,8 +5,8 @@ The useful pattern to borrow is not a single screen; it is the workflow discipli
 1. **Start with the user goal, not a chart picker.** Surface review queue, gaps, and high-signal
    timelines before asking people to choose a raw metric.
 2. **Keep provenance close.** Every claim should connect back to source rows, tags, and whether it is
-   observed, derived, context, inference, or a QA issue.
-3. **Make data quality visible.** Pending/non-numeric rows, source flags, missing ranges, and de-id
+   observed, derived, context, inference, or a QA note.
+3. **Make data quality visible.** Pending/non-numeric rows, source notes, missing ranges, and de-id
    staging issues should be first-class cards instead of hidden footnotes.
 4. **Use progressive disclosure.** Casual review starts with short cards and timelines; expert review
    can drill into source rows, route metadata, and machine-readable payloads.

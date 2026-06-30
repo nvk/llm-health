@@ -88,7 +88,7 @@ health genomics confirm-list --profile alex
 
 The GUI posts raw genotype text only to the local process, does not send/store the browser
 filename/path, and does not store dense genome-wide calls by default. Genomics output is
-confirmation-first context, not diagnosis or medication advice.
+confirmation-first context for follow-up planning and medication review.
 
 ## Smoke-test the future local API
 

@@ -32,7 +32,7 @@ def test_packaged_v2_static_ui_uses_review_packet_structure() -> None:
     assert "function renderDomainMap" in text
     assert "function viewBrief" in text
     assert "function rowFocusRows" in text
-    assert "Source flag rings" in text
+    assert "Source note rings" in text
     assert "Pending/nonnumeric rows stay in sources" in text
 
 
@@ -71,7 +71,7 @@ def test_packaged_v3_static_ui_uses_framework_board() -> None:
     assert "Family & hereditary context" in text
     assert "Private source vault" in text
     assert "Context overlays" in text
-    assert "Source flag rings" in text
+    assert "Source note rings" in text
     assert "Exact date labels" in text
     assert "Smart overlay comparison" in text
     assert "Overlay group" in text
@@ -79,7 +79,7 @@ def test_packaged_v3_static_ui_uses_framework_board() -> None:
     assert "resolved by later" in text
     assert "pending resulted" in text
     assert "old pending row" in text
-    assert "Normalization QA" in text
+    assert "Normalization notes" in text
     assert "English display fields" in text
     assert "priority groups open first" in text
     assert "mantine" in text.lower()
@@ -88,7 +88,7 @@ def test_packaged_v3_static_ui_uses_framework_board() -> None:
     assert "--corner-lg" in text
     assert "--tag-issue-bg" in text
     assert "content:none" in text
-    assert "QA issue" in text
+    assert "QA note" in text
     assert "Data gap" in text
     assert "Wearable context" in text
 

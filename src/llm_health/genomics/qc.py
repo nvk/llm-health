@@ -12,7 +12,7 @@ def build_qc(source: GenomicSource, variants: list[VariantCall]) -> GenomicQC:
     if source.genome_build == "unknown":
         warnings.append("genome_build_unknown")
     if not source.clinical_grade:
-        warnings.append("consumer_or_unconfirmed_source_not_diagnostic")
+        warnings.append("consumer_or_unconfirmed_source_review")
     if any("complex_or_indel_like_call" in variant.quality_flags for variant in variants):
         warnings.append("complex_or_indel_like_calls_need_review")
     return GenomicQC(
@@ -39,7 +39,7 @@ def render_qc(qc_rows: list[GenomicQC]) -> str:
         lines.append(f"no_calls: {qc.no_call_count}")
         lines.append(f"call_rate: {qc.call_rate:.3f}")
         lines.append(f"duplicates: {qc.duplicate_marker_count}")
-        lines.append("warnings: " + (", ".join(qc.warnings) if qc.warnings else "none"))
+        lines.append("qc_notes: " + (", ".join(qc.warnings) if qc.warnings else "none"))
         lines.append("")
-    lines.append("genetic_data_notice: context only; not diagnostic; confirm before action")
+    lines.append("review_note: context only; confirm decision-relevant findings")
     return "\n".join(lines).rstrip()

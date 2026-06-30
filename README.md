@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.32** | Softens review-warning language across the app, routes the genomics GUI through a server-side review pipeline, and adds patient-friendly genomics summaries. |
 | **0.0.31** | Expands `health genomics` to a release-pinned 805-row clinical marker catalog with source/confirmation metadata while keeping sensitive, specialty, and deferred markers out of default matching. |
 | **0.0.30** | Adds localhost genomics SNP matching GUI and changes imports to store only source fingerprints, sparse matched SNP calls, and findings by default. |
 | **0.0.29** | Adds `health genomics` for local SNP/genotype matching/import, QC, bundled annotation summaries, lab/med/family cross-reference cards, and confirmation-first PGx context. |
@@ -152,8 +153,8 @@ health genomics confirm-list --profile rod
 The GUI reads the selected text file in the browser, runs matching through the localhost process,
 and persists only matched SNP findings by default — not dense genome-wide calls or the browser
 filename/path. It shows QC and creates confirmation-first cross-reference cards. Genomic cards are
-own-risk review artifacts only: not diagnosis, not prescribing, not test ordering, and high-impact
-findings require clinical confirmation. See `docs/genomics.md`.
+review artifacts for context and follow-up planning; confirm any decision-relevant findings
+with appropriate clinical testing or clinician review. See `docs/genomics.md`.
 
 ## Source vault and source audit
 
@@ -199,7 +200,7 @@ Doctor reports are concise clinician briefs with source ranges, active flags, pe
 diagnostic gaps, family/context notes, mini-trends, and a recent source-row appendix. When the
 health-assessments wiki root is configured, reports use the full v2 canonical history like the GUI.
 Family reports are plain-language summaries with watch items and questions to ask. Reports are
-own-risk discussion packets, not medical advice; see `docs/reports.md`.
+local discussion packets for review and follow-up planning; see `docs/reports.md`.
 
 ## One-command local UI
 

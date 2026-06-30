@@ -555,9 +555,8 @@ def _render_doctor_report(
     )
     pdf.heading("Priority review")
     pdf.paragraph(
-        "This report is a local, own-risk synthesis. It is not a diagnosis, order, "
-        "prescription, or replacement for source review. Numbers below use source-provided "
-        "reference ranges when present."
+        "This local report is a review packet, not a diagnosis, order, or prescription. "
+        "Numbers below use source-provided reference ranges when present."
     )
     pdf.table(
         ["date", "marker", "result", "source range", "flag"],
@@ -829,11 +828,11 @@ def _family_headlines(
     lines = []
     if active_flags:
         lines.append(
-            f"There are {len(active_flags)} active source-flagged result(s); use these as "
+            f"There are {len(active_flags)} active source-noted result(s); use these as "
             "conversation starters, not standalone conclusions."
         )
     else:
-        lines.append("No active source-flagged results are showing in the current local dataset.")
+        lines.append("No active source-noted results are showing in the current local dataset.")
     if pending:
         lines.append(f"There are {len(pending)} pending/non-numeric source row(s) to reconcile.")
     if bundle.diagnostic_gaps:

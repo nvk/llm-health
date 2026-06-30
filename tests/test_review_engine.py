@@ -22,7 +22,7 @@ class ReviewEngineTests(unittest.TestCase):
             result = ReviewEngine(store).review_new_observations("rod", [obs])
             self.assertGreaterEqual(result.interest_score, 0.60)
             self.assertEqual(len(result.research_jobs), 1)
-            self.assertTrue(any("Flagged" in card.title for card in result.cards))
+            self.assertTrue(any("Source-noted" in card.title for card in result.cards))
 
     def test_large_delta_trigger(self):
         with tempfile.TemporaryDirectory() as tmp:

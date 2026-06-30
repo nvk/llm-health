@@ -17,9 +17,9 @@
       </div>
     </div>
 
-    <section class="sidebar-note" aria-label="Own-risk notice">
+    <section class="sidebar-note" aria-label="Review note">
       <span class="tag qa">OWN-RISK</span>
-      <p>Private, local briefing. Not diagnosis, medical advice, a prescription, or a clinician relationship.</p>
+      <p>Private, local review board for source checks and follow-up planning.</p>
     </section>
 
     <section class="control-block">
@@ -75,7 +75,7 @@
 
     <section class="control-block toggles" aria-label="Timeline overlays">
       <label><input type="checkbox" id="showWeight" checked> Weight context</label>
-      <label><input type="checkbox" id="showFlags" checked> Source flag rings</label>
+      <label><input type="checkbox" id="showFlags" checked> Source note rings</label>
       <label><input type="checkbox" id="showLabels"> Exact date labels</label>
       <p class="help-text">Pending/nonnumeric rows stay in sources; they are not plotted.</p>
     </section>
@@ -94,7 +94,7 @@
         <p class="eyebrow">OBSERVED · DERIVED · CONTEXT · QA</p>
         <h2>Longitudinal review board</h2>
         <p class="lede">Filtered labs, wearables, flags, timelines, and source rows.</p>
-        <p class="own-risk-line">Own-risk review layer — verify source rows before acting.</p>
+        <p class="own-risk-line">Local review layer — check source rows for decision-relevant items.</p>
       </div>
       <div class="top-actions">
         <div class="profile-state" id="profileState" aria-live="polite"></div>
@@ -146,7 +146,7 @@
         <div>
           <h3>Matching observations</h3>
           <p id="tableMeta">—</p>
-          <p class="help-text">Verify plotted points, source flags, ranges, and provenance here.</p>
+          <p class="help-text">Review plotted points, source notes, ranges, and provenance here.</p>
           <div class="source-focus" id="sourceFocusControls" role="group" aria-label="Source row focus">
             <button type="button" data-row-focus="all" aria-pressed="false">All rows</button>
             <button type="button" data-row-focus="flags" aria-pressed="false">Flags</button>

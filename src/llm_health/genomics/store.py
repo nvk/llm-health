@@ -30,7 +30,7 @@ class GenomicsStore:
                             "raw genetic files are not stored here; source paths omitted; "
                             "stored variant calls are matched allowlist only by default"
                         ),
-                        "disclaimer": "genomic artifacts are context only, not diagnosis",
+                        "review_note": "genomic artifacts are context notes",
                     },
                     indent=2,
                     sort_keys=True,

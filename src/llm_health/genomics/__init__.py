@@ -5,6 +5,7 @@ from .qc import build_qc
 from .store import GenomicsStore
 from .workflow import (
     GenomicsImportSummary,
+    build_crossrefs_for_review,
     import_raw_genotype_text_into_store,
     run_crossrefs_into_store,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "GenomicsImportSummary",
     "VariantCall",
     "build_cross_references",
+    "build_crossrefs_for_review",
     "build_qc",
     "import_raw_genotype_text_into_store",
     "parse_raw_genotype_file",

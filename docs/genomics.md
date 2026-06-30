@@ -1,7 +1,7 @@
 # Genomics and SNP cross-reference layer
 
 `health genomics` is a local-first scaffold for using SNP/genotype data as context in
-llm-health. It does **not** diagnose, prescribe, order tests, or change medication. It scans raw genotype text locally by fingerprint, stores only matched SNP findings by default, runs QC, and
+llm-health. It keeps genotype matches as context for review and follow-up planning. It scans raw genotype text locally by fingerprint, stores only matched SNP findings by default, runs QC, and
 creates confirmation-first review cards that can cross-reference labs, medication context, and family
 history.
 
@@ -17,7 +17,7 @@ stricter defaults:
 - source summaries store a file hash, source kind, marker counts, call-rate fields, and QC flags;
 - dense genome-wide calls are not stored by default; only matched allowlist SNP calls plus
   confirmation-first findings are persisted;
-- outputs must say genetic context is not diagnostic and high-impact findings require confirmation.
+- outputs must frame genetic context as review notes and prompt confirmation before decision-relevant use.
 
 ## Commands
 
@@ -55,8 +55,8 @@ genome-wide calls.
   default.
 - Stores `GenomicSource` summaries, sparse matched allowlist SNP calls, and review findings under the
   private HUB; dense genome-wide calls require an explicit local-only override.
-- Reports QC warnings for low call rate, duplicate markers, unknown genome build, complex/indel-like
-  calls, and non-clinical-grade sources.
+- Reports QC notes for low call rate, duplicate markers, unknown genome build, complex/indel-like
+  calls, and consumer/unconfirmed sources.
 - Provides a release-pinned bundled clinical marker catalog with 805 rows: 786 CPIC/ClinPGx
   allele-definition markers across 17 genes plus 19 manually reviewed clinical sentinel rows.
 - Uses only the `candidate_default_after_qc` subset for normal sparse matching by default

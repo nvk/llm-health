@@ -26,7 +26,7 @@ class GenomicSource:
     clinical_grade: bool = False
     stored_variant_scope: str = "matched_allowlist_only"
     stored_variant_count: int = 0
-    consent: str = "own-risk genetic context only; not diagnostic"
+    consent: str = "genetic context review; confirm decision-relevant findings"
     tags: list[str] = field(default_factory=lambda: [VisibleTag.CONTEXT.value])
     source_id: str | None = None
     imported_at: str = field(default_factory=utc_now_iso)
