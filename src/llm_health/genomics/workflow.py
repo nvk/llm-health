@@ -8,7 +8,7 @@ from llm_health.stores import LocalHealthStore
 
 from .crossref import build_cross_references
 from .importers import parse_raw_genotype_text
-from .knowledge import MARKERS
+from .knowledge import MATCHABLE_MARKERS
 from .models import GenomicInference, GenomicQC, GenomicSource
 from .qc import build_qc
 from .store import GenomicsStore
@@ -44,7 +44,11 @@ class GenomicsImportSummary:
 def matched_allowlist_variants(variants):
     """Return sparse, called variants that can drive bundled SNP findings."""
 
-    return [variant for variant in variants if variant.is_called and variant.rsid in MARKERS]
+    return [
+        variant
+        for variant in variants
+        if variant.is_called and variant.rsid in MATCHABLE_MARKERS
+    ]
 
 
 def import_raw_genotype_text_into_store(

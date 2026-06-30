@@ -16,6 +16,8 @@ from llm_health.genomics import (
     parse_raw_genotype_text,
 )
 from llm_health.genomics.gui import render_genomics_import_ui
+from llm_health.genomics.knowledge import MARKERS, MATCHABLE_MARKERS, marker_count_by_runtime
+from llm_health.genomics.workflow import matched_allowlist_variants
 from llm_health.service import route_manifest
 from llm_health.stores import LocalHealthStore
 
@@ -44,6 +46,42 @@ class GenomicsTests(unittest.TestCase):
             encoding="utf-8",
         )
         return path
+
+    def test_clinical_marker_catalog_is_loaded_and_filters_default_matching(self):
+        self.assertGreaterEqual(len(MARKERS), 805)
+        self.assertGreaterEqual(len(MATCHABLE_MARKERS), 400)
+        runtime_counts = marker_count_by_runtime()
+        self.assertGreaterEqual(runtime_counts["candidate_default_after_qc"], 400)
+        self.assertEqual(MARKERS["rs1057910"].gene, "CYP2C9")
+        self.assertEqual(MARKERS["rs1057910"].effect_allele, "C")
+        self.assertEqual(MARKERS["rs3918290"].gene, "DPYD")
+        self.assertIn("CPIC", MARKERS["rs3918290"].clinical_reference)
+        self.assertIn("http", MARKERS["rs3918290"].source_url)
+        self.assertEqual(MARKERS["rs429358"].gene, "APOE")
+        self.assertNotIn("rs429358", MATCHABLE_MARKERS)
+        self.assertNotIn("rs7412", MATCHABLE_MARKERS)
+        self.assertNotIn("rs6025", MATCHABLE_MARKERS)
+
+    def test_expanded_default_matching_excludes_sensitive_and_deferred_markers(self):
+        parsed = parse_raw_genotype_text(
+            "# synthetic expanded marker fixture\n"
+            "rsid\tchromosome\tposition\tgenotype\n"
+            "rs1057910\t10\t94981296\tCC\n"
+            "rs3918290\t1\t97098502\tCT\n"
+            "rs4149056\t12\t21178615\tCT\n"
+            "rs429358\t19\t44908684\tCT\n"
+            "rs7412\t19\t44908822\tCT\n"
+            "rs6025\t1\t169549811\tAG\n",
+            profile_id="alex",
+        )
+        matched = matched_allowlist_variants(parsed.variants)
+        rsids = {variant.rsid for variant in matched}
+        self.assertIn("rs1057910", rsids)
+        self.assertIn("rs3918290", rsids)
+        self.assertIn("rs4149056", rsids)
+        self.assertNotIn("rs429358", rsids)
+        self.assertNotIn("rs7412", rsids)
+        self.assertNotIn("rs6025", rsids)
 
     def test_parse_raw_genotype_and_qc(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -266,6 +304,7 @@ class GenomicsTests(unittest.TestCase):
             )
             self.assertEqual(explain.returncode, 0, explain.stderr)
             self.assertIn("HFE", explain.stdout)
+            self.assertIn("source_url:", explain.stdout)
             self.assertIn("AG", explain.stdout)
 
             pgx = self.run_cli("genomics", "pgx", "--profile", "alex", store=tmp)

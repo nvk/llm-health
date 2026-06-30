@@ -55,8 +55,14 @@ def render_explain(rsid: str, variants: list[VariantCall]) -> str:
         lines.append(f"label: {knowledge.label}")
         lines.append(f"finding_type: {knowledge.finding_type}")
         lines.append(f"effect_allele: {knowledge.effect_allele}")
+        lines.append(f"runtime_default: {knowledge.runtime_default}")
+        lines.append(f"reporting_tier: {knowledge.reporting_tier}")
         lines.append(f"summary: {knowledge.summary}")
         lines.append(f"gate: {knowledge.evidence_gate}")
+        if knowledge.confirmation_tests:
+            lines.append(f"confirmation_tests: {knowledge.confirmation_tests}")
+        if knowledge.source_url:
+            lines.append(f"source_url: {knowledge.source_url}")
     else:
         lines.append("No bundled annotation for this marker yet.")
     lines.append("")
@@ -90,7 +96,7 @@ def render_confirm_list(inferences: list[GenomicInference]) -> str:
 def render_annotation_summary(variants: list[VariantCall]) -> str:
     known = [variant for variant in variants if variant.rsid in MARKERS and variant.is_called]
     lines = ["# Genomics annotation summary", ""]
-    lines.append("annotation_sources: bundled ClinVar/dbSNP/CPIC-inspired allowlist scaffold")
+    lines.append("annotation_sources: bundled release-pinned clinical marker catalog")
     lines.append(f"known_marker_matches: {len(known)}")
     for variant in known:
         knowledge = MARKERS[variant.rsid]

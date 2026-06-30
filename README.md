@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.31** | Expands `health genomics` to a release-pinned 805-row clinical marker catalog with source/confirmation metadata while keeping sensitive, specialty, and deferred markers out of default matching. |
 | **0.0.30** | Adds localhost genomics SNP matching GUI and changes imports to store only source fingerprints, sparse matched SNP calls, and findings by default. |
 | **0.0.29** | Adds `health genomics` for local SNP/genotype matching/import, QC, bundled annotation summaries, lab/med/family cross-reference cards, and confirmation-first PGx context. |
 | **0.0.28** | First-run onboarding now points users to `health ui` early so the local board is not hidden. |
@@ -131,9 +132,10 @@ Then commands such as `health review --profile rod` and `health sync-v2 ...` use
 ## Genomics and SNP context
 
 `health genomics` runs local matching against raw genotype text files by fingerprint and keeps raw
-genetic file paths plus dense genome-wide calls out of the HUB by default. It can show source QC,
-bundled marker annotations, confirmation-first lab/med/family cross-reference cards, and PGx context
-prompts:
+genetic file paths plus dense genome-wide calls out of the HUB by default. It ships a release-pinned
+805-row clinical marker catalog with source URLs, context gates, and confirmation-test wording, while
+only the default-safe subset is stored by normal imports. It can show source QC, bundled marker
+annotations, confirmation-first lab/med/family cross-reference cards, and PGx context prompts:
 
 ```sh
 # Browser file picker on localhost; no filename/path is posted or stored.

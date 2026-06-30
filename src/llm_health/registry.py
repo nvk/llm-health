@@ -152,16 +152,16 @@ CAPABILITIES: tuple[Capability, ...] = (
         kind="data",
         command="health genomics ui/import/status/qc/annotate/crossref/pgx",
         summary=(
-            "Run local SNP matching from raw genotype files, store source fingerprints "
-            "plus sparse matched findings, run QC, and create confirmation-first "
-            "lab/med/family review cards."
+            "Run local SNP matching from raw genotype files against a release-pinned "
+            "clinical marker catalog, store source fingerprints plus sparse matched "
+            "findings, run QC, and create confirmation-first review cards."
         ),
         module="llm_health.genomics",
         privacy=(
             "raw genetic file paths are never stored; dense genome-wide calls are not "
             "stored by default, only sparse matched SNP findings"
         ),
-        external_calls="none; bundled annotation scaffold only",
+        external_calls="none; bundled release-pinned marker catalog only",
         status="scaffold",
         tests=["tests/test_genomics.py"],
         docs=["docs/genomics.md", "docs/feature-map.md"],

@@ -10,8 +10,10 @@ from .store import GenomicsStore
 
 
 def effect_allele_count(variant: VariantCall, knowledge: MarkerKnowledge) -> int:
-    effect = knowledge.effect_allele.upper()
-    return sum(1 for allele in variant.normalized_alleles if allele == effect)
+    effects = knowledge.match_alleles
+    if not effects:
+        return 0
+    return sum(1 for allele in variant.normalized_alleles if allele in effects)
 
 
 def _observation_text(row) -> str:
@@ -91,8 +93,12 @@ def build_cross_references(
             f"{variant.rsid} {knowledge.gene} effect allele observed: {count}",
             knowledge.evidence_gate,
         ]
+        if knowledge.clinical_reference:
+            evidence.append(f"Clinical reference: {knowledge.clinical_reference}")
         related_observation_ids: list[str] = []
-        tags = [VisibleTag.INFERENCE.value, VisibleTag.DATA_GAP.value]
+        tags = sorted(
+            {VisibleTag.INFERENCE.value, VisibleTag.DATA_GAP.value, *knowledge.output_tags}
+        )
         confidence = knowledge.confidence
         summary = knowledge.summary
         title = knowledge.label

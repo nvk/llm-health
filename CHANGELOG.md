@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.0.31 - 2026-06-30
+
+- Expanded the bundled genomics marker catalog to 805 release-pinned clinical rows with source-family, source URL, context-gate, confirmation-test, reporting-tier, and runtime-default metadata.
+- Kept normal genotype imports sparse and conservative by matching only the `candidate_default_after_qc` subset by default; sensitive APOE/BRCA-style, specialty, and deferred markers remain out of default storage.
+- Added clinical-reference output to `health genomics explain`, updated annotation wording, and added regression tests for catalog loading, expanded PGx/default matching, and sensitive/deferred exclusion.
+
 ## 0.0.30 - 2026-06-29
 
 - Added `health genomics ui` for a localhost-only genotype SNP matching GUI with a browser file picker, profile selector, genetic-risk acknowledgement, QC summary, and cross-reference cards.

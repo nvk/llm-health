@@ -57,8 +57,11 @@ genome-wide calls.
   private HUB; dense genome-wide calls require an explicit local-only override.
 - Reports QC warnings for low call rate, duplicate markers, unknown genome build, complex/indel-like
   calls, and non-clinical-grade sources.
-- Provides a small bundled marker allowlist for early cross-reference scaffolding: HFE/iron,
-  UGT1A1/bilirubin, HLA/celiac context, G6PD/hemolysis context, SLCO1B1/statin PGx, and CYP2C19 PGx.
+- Provides a release-pinned bundled clinical marker catalog with 805 rows: 786 CPIC/ClinPGx
+  allele-definition markers across 17 genes plus 19 manually reviewed clinical sentinel rows.
+- Uses only the `candidate_default_after_qc` subset for normal sparse matching by default
+  (437 markers in this release). Sensitive, specialty, and deferred markers stay out of default
+  storage until dedicated opt-in/confirmation workflows exist.
 - Creates `GenomicInference` cards tagged as review artifacts with required confirmation gates.
 - Provides `health genomics ui`, a localhost-only browser SNP matching panel with a file picker, profile
   selector, genetic-risk checkbox, QC summary, and cross-reference cards.
@@ -67,10 +70,29 @@ genome-wide calls.
 
 ## Deliberate limits
 
-This release intentionally does not fetch live ClinVar/dbSNP/ClinGen/CPIC/PGS data. `annotate` uses a
-small bundled scaffold and prints that no external calls were made. Full release-pinned annotation
-caches, VCF import, PharmCAT integration, PGS Catalog scoring, GA4GH VRS identifiers, and FHIR
+This release intentionally does not fetch live ClinVar/dbSNP/ClinGen/CPIC/PGS data at runtime.
+`annotate` uses the bundled release-pinned marker catalog and prints that no external calls were
+made. Full VCF import, PharmCAT integration, PGS Catalog scoring, GA4GH VRS identifiers, and FHIR
 Genomics exports should be added after the privacy, QC, and confirmation-first contracts are stable.
+
+## Bundled clinical marker catalog
+
+The packaged catalog lives under `llm_health.genomics` package data and is loaded without network
+access. It includes source-family labels, source URLs for review, clinical context gates,
+confirmation-test wording, reporting tiers, and runtime-default flags.
+
+Runtime tiers:
+
+- `candidate_default_after_qc`: included in normal match-only imports.
+- `defer_until_context`, `defer_until_strand_fixture`, `defer_until_clinvar_validation`: documented
+  but not stored by default.
+- `specialty_opt_in`: specialty contexts such as malignant-hyperthermia anesthesia safety, CFTR, and
+  mitochondrial aminoglycoside/hearing-loss markers; not default.
+- `sensitive_opt_in` / `sensitive_opt_in_gene_panel_preferred`: APOE and selected BRCA-style
+  sensitive contexts; not default and never a reassurance screen.
+
+Rows are clinical-review prompts, not diagnoses. Missing rows or absent array coverage never means
+low risk.
 
 ## Review semantics
 

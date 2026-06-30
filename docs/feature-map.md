@@ -33,7 +33,9 @@ health capabilities --json
 - `health service` binds localhost by default and refuses non-local binds unless the user explicitly
   passes `--allow-nonlocal`.
 - `health genomics` stores source fingerprints, sparse matched SNP calls, and findings under the
-  private HUB by default; raw genetic file paths and dense genome-wide calls are not stored.
+  private HUB by default; raw genetic file paths and dense genome-wide calls are not stored. The
+  bundled clinical marker catalog is release-pinned, includes confirmation-test/source metadata, and
+  keeps sensitive/specialty/deferred markers out of default matching.
 - `health genomics ui` is localhost-only by default; its browser file picker runs local matching
   without sending/storing the browser filename/path or dense genome-wide calls.
 
