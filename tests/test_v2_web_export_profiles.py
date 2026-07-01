@@ -3,6 +3,9 @@ import json
 from pathlib import Path
 
 from llm_health.assessment_v2.export.v2_web import export_v2_web
+from llm_health.core.models import EnrolledProfile
+from llm_health.genomics import GenomicsStore, import_raw_genotype_text_into_store
+from llm_health.stores import LocalHealthStore
 
 OBS_FIELDS = [
     "observation_id",
@@ -82,6 +85,56 @@ def _payload_from_data_js(path: Path) -> dict:
     prefix = "window.HEALTH_ASSESSMENT_V2 = "
     assert text.startswith(prefix)
     return json.loads(text[len(prefix) :].rstrip(";\n"))
+
+
+def test_export_v2_web_includes_rendered_genomics_review_payload(
+    tmp_path, monkeypatch
+) -> None:
+    wiki = tmp_path / "wiki"
+    output_dir = tmp_path / "site"
+    hub = tmp_path / "hub"
+    health_store = LocalHealthStore(hub)
+    health_store.init()
+    health_store.enroll_profile(EnrolledProfile(profile_id="rod", birth_year=1983))
+    genomics_store = GenomicsStore(hub)
+    import_raw_genotype_text_into_store(
+        health_store,
+        genomics_store,
+        profile_id="rod",
+        content=(
+            "# synthetic 23andMe-like raw data\n"
+            "# reference build GRCh37\n"
+            "rsid\tchromosome\tposition\tgenotype\n"
+            "rs1800562\t6\t26092913\tAG\n"
+            "rs6742078\t2\t234668879\tTT\n"
+            "rs4149056\t12\t21178615\tCT\n"
+            "rs4244285\t10\t96541616\tAG\n"
+        ),
+        accept_genetic_risk=True,
+    )
+    monkeypatch.setenv("LLM_HEALTH_HUB", str(hub))
+
+    _write_csv(wiki / "output/data/lab-observations-long.csv", OBS_FIELDS)
+    _write_csv(wiki / "output/data/apple-health-daily-summary.csv", DAILY_FIELDS)
+
+    export = export_v2_web(wiki, output_dir)
+    payload = _payload_from_data_js(export.data_path)
+
+    assert "rod" in payload["export_summary"]["genomics_profiles"]
+    review = payload["genomics"]["rod"]
+    assert review["sources"]["count"] == 1
+    assert review["sources"]["variant_count"] >= 1
+    assert "patient_summary" in review
+    assert "This profile" in review["patient_summary"]["lead"]
+    assert "genomicsSummary" in payload["profile_context"]["rod"]
+    assert payload["profile_context"]["rod"]["genomicsSummary"]["marker_count"] >= 1
+    assert all(
+        "patient_summary" in card for card in review["crossrefs"]["cards"]
+    )
+    data_js = export.data_path.read_text(encoding="utf-8")
+    assert "file_sha256" not in data_js
+    assert "/Users/" not in data_js
+    assert "synthetic-genotype" not in data_js
 
 
 def test_export_v2_web_includes_zero_data_enrolled_profiles(tmp_path, monkeypatch) -> None:

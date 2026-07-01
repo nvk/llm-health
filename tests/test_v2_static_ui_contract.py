@@ -25,14 +25,18 @@ def test_packaged_v2_static_ui_uses_review_packet_structure() -> None:
     assert "id=\"profileState\"" in text
     assert "id=\"domainMap\"" in text
     assert "id=\"viewBrief\"" in text
+    assert "id=\"genomicsSection\"" in text
+    assert "data-section=\"genomics\"" in text
     assert "data-row-focus=\"flags\"" in text
     assert "data-jump" in text
     assert "data-category-jump" in text
     assert "function populateProfiles" in text
     assert "function renderDomainMap" in text
+    assert "function renderGenomics" in text
     assert "function viewBrief" in text
     assert "function rowFocusRows" in text
     assert "Source note rings" in text
+    assert "/genomics/ui" in text
     assert "Pending/nonnumeric rows stay in sources" in text
 
 
@@ -70,12 +74,17 @@ def test_packaged_v3_static_ui_uses_framework_board() -> None:
     assert "History timeline" in text
     assert "Family & hereditary context" in text
     assert "Private source vault" in text
+    assert "Genomics" in text
+    assert "Genomics review" in text
+    assert "Genomic review" in text
+    assert "Patient-friendly findings" in text
+    assert "/genomics/ui" in text
     assert "Context overlays" in text
     assert "Source note rings" in text
     assert "Exact date labels" in text
     assert "Smart overlay comparison" in text
     assert "Overlay group" in text
-    assert "Resolved flags are historical" in text
+    assert "Resolved source notes are historical" in text
     assert "resolved by later" in text
     assert "pending resulted" in text
     assert "old pending row" in text

@@ -156,6 +156,7 @@
     for (const row of rawRows) add(row.profile_id);
     for (const row of wearableRows) add(row.profile_id);
     for (const id of Object.keys(DATA.profile_context || {})) add(id);
+    for (const id of Object.keys(DATA.genomics || {})) add(id);
     if (!byProfile.size) { add('rod'); add('cara'); }
     return [...byProfile.values()].sort((a, b) => profileRank(a.id) - profileRank(b.id) || a.id.localeCompare(b.id));
   }
@@ -173,12 +174,14 @@
     byId('scaleSelect').value = state.scale;
     byId('smoothSelect').value = state.smooth;
     byId('reviewSection').hidden = state.section !== 'review';
+    byId('genomicsSection').hidden = state.section !== 'genomics';
     byId('timelineSection').hidden = state.section !== 'timeline';
     byId('sourcesSection').hidden = state.section !== 'sources';
     const rows = filteredRows();
     renderProfileState(rows);
     renderSummary(rows);
     renderReview(rows);
+    renderGenomics();
     renderTimeline(rows);
     renderTable(rows);
     persist();
@@ -201,12 +204,15 @@
     const numeric = rows.filter(r => r.isNumeric).length;
     const sourceFlags = rows.filter(r => r.flag_raw && !r.isPending).length;
     const pending = rows.filter(r => r.isPending).length;
+    const genomics = currentGenomics();
+    const genomicCards = genomicsCardCount(genomics);
     byId('profileState').innerHTML = [
       statusChipHtml('CONTEXT', profileLabel(), 'review', 'Show the review queue for this profile'),
       statusChipHtml('OBSERVED', `${numeric.toLocaleString()} plotted-capable`, 'timeline', 'Jump to timeline evidence'),
       sourceFlags
         ? statusChipHtml('QA_ISSUE', `${sourceFlags} source notes`, 'flags', 'Show source-review rows')
         : statusChipHtml('OBSERVED', 'no source notes', 'sources', 'Show source rows'),
+      genomics ? statusChipHtml('INFERENCE', `${genomicCards || genomicsMarkerCount(genomics)} genomic`, 'genomics', 'Show genomics review cards') : '',
       pending ? statusChipHtml('DATA_GAP', `${pending} pending`, 'pending', 'Show pending source rows') : ''
     ].join('');
   }
@@ -218,9 +224,11 @@
     const derived = numeric.filter(isDerived).length;
     const context = DATA.profile_context?.[state.profile] || {};
     const dates = rows.map(r => r.date).filter(Boolean).sort();
+    const genomics = currentGenomics();
     byId('summaryGrid').innerHTML = [
       metric('Rows', rows.length.toLocaleString(), `${numeric.length.toLocaleString()} numeric · ${derived.toLocaleString()} derived`),
       metric('Review notes', (flagged + pending).toLocaleString(), `${flagged} source notes · ${pending} pending`),
+      genomics ? metric('Genomics', (genomicsCardCount(genomics) || genomicsMarkerCount(genomics)).toLocaleString(), `${genomicsSourceCount(genomics)} source(s) · ${genomicsMarkerCount(genomics)} markers`) : '',
       metric('Span', dates.length ? `${dates[0]} → ${dates.at(-1)}` : '—', state.range),
       metric('Weight', Number.isFinite(context.currentWeightKg) ? `${context.currentWeightKg} kg` : '—', context.currentWeightDate || 'no context')
     ].join('');
@@ -275,6 +283,64 @@
     return `<article class="review-card ${escapeAttr(variant)}"><strong>${escapeHtml(title)}</strong>${rows.map(([tag,text]) => `<div>${tagHtml(tag)}${escapeHtml(text)}</div>`).join('')}</article>`;
   }
 
+  function renderGenomics() {
+    const genomics = currentGenomics();
+    const link = byId('genomicsUiLink');
+    if (link) link.setAttribute('href', genomicsUiHref());
+    if (!genomics) {
+      byId('genomicsSummary').innerHTML = `<div class="empty">No rendered genomics review is included for ${escapeHtml(displayAlias(state.profile))}. Use the local genomics UI, then refresh this board.</div>`;
+      byId('genomicsCards').innerHTML = '';
+      return;
+    }
+    const sources = safeArray(genomics.sources?.sources);
+    const qcRows = safeArray(genomics.qc?.qc);
+    const cards = safeArray(genomics.crossrefs?.cards);
+    const summary = genomics.patient_summary || {};
+    const callRates = qcRows.map(row => numberOrNull(row.call_rate)).filter(Number.isFinite);
+    const bestCallRate = callRates.length ? `${(Math.max(...callRates) * 100).toFixed(1)}%` : '—';
+    const bullets = safeArray(summary.bullets).slice(0, 4).map(text => `<li>${escapeHtml(text)}</li>`).join('');
+    byId('genomicsSummary').innerHTML = [
+      `<article class="genomics-hero-card"><div>${tagList(summary.tags || ['CONTEXT','CONFIRM_FIRST'])}<h4>${escapeHtml(summary.lead || genomicsSummaryLine(genomics))}</h4>${bullets ? `<ul>${bullets}</ul>` : ''}</div></article>`,
+      '<div class="genomics-metrics">',
+      metric('Genomic sources', genomicsSourceCount(genomics).toLocaleString(), 'local summaries'),
+      metric('Matched markers', genomicsMarkerCount(genomics).toLocaleString(), 'saved for review'),
+      metric('Review cards', genomicsCardCount(genomics).toLocaleString(), 'discussion prompts'),
+      metric('Best call rate', bestCallRate, 'readable checked spots'),
+      '</div>',
+      sources.length ? `<div class="genomics-source-list">${sources.map(source => genomicsSourceCard(source, qcRows.find(row => row.source_id === source.source_id))).join('')}</div>` : '<div class="empty">No source summaries rendered.</div>'
+    ].join('');
+    byId('genomicsCards').innerHTML = cards.length ? cards.map(genomicsCard).join('') : '<div class="empty">No matched genomics review cards are showing yet.</div>';
+  }
+
+  function genomicsSourceCard(source, qc) {
+    const callRate = numberOrNull(source.call_rate ?? qc?.call_rate);
+    return `<article class="genomics-source-card">
+      <header><strong>${escapeHtml(source.source_id || 'genotype source')}</strong>${tagList(source.tags || ['CONTEXT'])}</header>
+      <p>${escapeHtml(source.source_kind || 'source')} · ${escapeHtml(source.genome_build || 'build unknown')} · ${source.clinical_grade ? 'clinical-grade marked' : 'consumer/local source'}</p>
+      <div class="domain-meta">
+        <span>${escapeHtml(String(source.marker_count ?? qc?.marker_count ?? 0))} source markers</span>
+        <span>${escapeHtml(String(source.stored_variant_count ?? 0))} saved markers</span>
+        <span>${callRate === null ? 'call rate —' : `call rate ${(callRate * 100).toFixed(1)}%`}</span>
+      </div>
+    </article>`;
+  }
+
+  function genomicsCard(card) {
+    const patient = card.patient_summary || card.summary || 'Review prompt generated by the local genomics pipeline.';
+    const evidence = safeArray(card.evidence).slice(0, 4).map(item => `<li>${escapeHtml(item)}</li>`).join('');
+    return `<article class="review-card genomics-card">
+      <header><strong>${escapeHtml(card.title || 'Genomic review card')}</strong>${tagList(card.tags || ['INFERENCE'])}</header>
+      <p>${escapeHtml(patient)}</p>
+      <div class="domain-meta">
+        <span>${escapeHtml(card.finding_type || 'genomic context')}</span>
+        <span>confidence ${escapeHtml(card.confidence || 'review')}</span>
+        <span>discuss with ${escapeHtml(card.discussion_target || 'clinician')}</span>
+        ${card.required_confirmation ? '<span>confirm first</span>' : ''}
+      </div>
+      ${evidence ? `<details><summary>Clinical references / evidence</summary><ul>${evidence}</ul></details>` : ''}
+    </article>`;
+  }
+
   function renderTimeline(rows) {
     const numeric = rows.filter(r => r.isNumeric);
     const groups = groupSeries(numeric);
@@ -326,7 +392,7 @@
       : 'No rows after the current profile, time, category, and search filters.';
     const details = [
       `${stat.rows.toLocaleString()} rows`,
-      `${stat.sourceFlags.toLocaleString()} flags`,
+      `${stat.sourceFlags.toLocaleString()} source notes`,
       `${stat.pending.toLocaleString()} pending`,
       stat.latest ? `latest ${iso(stat.latest)}` : 'latest —'
     ];
@@ -345,7 +411,7 @@
     return [
       briefItem('View scope', 'CONTEXT', `${profileLabel()} · ${state.category} · ${state.range}`, `Search${state.search ? `: ${state.search}` : ': none'}`),
       briefItem('Plot semantics', 'OBSERVED', `${groups.length.toLocaleString()} series · ${span}`, modeNote),
-      briefItem('Source state', flags ? 'QA_ISSUE' : pending ? 'DATA_GAP' : 'OBSERVED', `${flags} source notes · ${pending} pending`, 'Flag rings come from source ranges; pending rows are not plotted.'),
+      briefItem('Source state', flags ? 'QA_ISSUE' : pending ? 'DATA_GAP' : 'OBSERVED', `${flags} source notes · ${pending} pending`, 'Source-note rings come from source ranges; pending rows are not plotted.'),
       briefItem('Context overlays', state.showWeight ? 'CONTEXT' : 'DATA_GAP', state.showWeight ? `weight on · ${weightRows.length} rows` : 'weight off', 'Weight is normalized when overlaid on lab units.')
     ].join('');
   }
@@ -527,7 +593,7 @@
   }
 
   function rowFocusLabel() {
-    if (state.rowFocus === 'flags') return 'flagged';
+    if (state.rowFocus === 'flags') return 'source-note';
     if (state.rowFocus === 'pending') return 'pending';
     if (state.rowFocus === 'numeric') return 'numeric';
     return 'matching';
@@ -748,6 +814,7 @@
   function setThemeButton() { byId('themeToggle').textContent = state.theme === 'dark' ? 'Light theme' : 'Dark theme'; byId('themeToggle').setAttribute('aria-pressed', state.theme === 'dark' ? 'true' : 'false'); }
   function jumpTo(action) {
     if (action === 'timeline') { state.section = 'timeline'; state.rowFocus = 'all'; }
+    else if (action === 'genomics') { state.section = 'genomics'; state.rowFocus = 'all'; }
     else if (action === 'flags') { state.section = 'sources'; state.rowFocus = 'flags'; }
     else if (action === 'pending') { state.section = 'sources'; state.rowFocus = 'pending'; }
     else if (action === 'sources') { state.section = 'sources'; state.rowFocus = 'all'; }
@@ -763,9 +830,33 @@
   function profileLabel() { return `${displayAlias(state.profile)} only`; }
   function displayAlias(id) { return String(id || '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Profile'; }
   function profileRank(id) { const order = ['rod', 'cara']; const index = order.indexOf(id); return index === -1 ? 50 : index; }
+  function currentGenomics() { const payload = DATA.genomics?.[state.profile]; return payload && typeof payload === 'object' ? payload : null; }
+  function genomicsSourceCount(genomics) { const value = numberOrNull(genomics?.sources?.count); return value ?? safeArray(genomics?.sources?.sources).length; }
+  function genomicsMarkerCount(genomics) {
+    const value = numberOrNull(genomics?.sources?.variant_count);
+    if (value !== null) return value;
+    return safeArray(genomics?.sources?.sources).reduce((sum, source) => sum + Number(source.stored_variant_count || 0), 0);
+  }
+  function genomicsCardCount(genomics) { const value = numberOrNull(genomics?.crossrefs?.count); return value ?? safeArray(genomics?.crossrefs?.cards).length; }
+  function genomicsSummaryLine(genomics) {
+    const lead = String(genomics?.patient_summary?.lead || '').trim();
+    if (lead) return lead;
+    const cards = safeArray(genomics?.crossrefs?.cards);
+    const topics = [...new Set(cards.map(card => String(card.patient_summary || '').split(' — ')[0].trim()).filter(Boolean))].slice(0, 3);
+    if (topics.length) return `Genetic review cards include ${topics.join(', ')}.`;
+    if (genomicsMarkerCount(genomics)) return `${genomicsMarkerCount(genomics).toLocaleString()} matched genetic markers are saved for review.`;
+    return 'No specific genomics matches are showing yet.';
+  }
+  function genomicsUiHref() {
+    const params = new URLSearchParams({ profile: state.profile });
+    return location.protocol === 'file:' ? `http://127.0.0.1:8766/genomics/ui?${params}` : `/genomics/ui?${params}`;
+  }
+  function safeArray(value) { return Array.isArray(value) ? value : []; }
+  function numberOrNull(value) { const n = Number(value); return Number.isFinite(n) ? n : null; }
+  function tagList(tags) { return safeArray(tags).slice(0, 6).map(tag => tagHtml(String(tag).toUpperCase())).join(''); }
   function isDerived(r) { return /derived|calculated|ratio|index/i.test(`${r.result_type || ''} ${r.analyte_en || ''} ${r.notes || ''}`); }
   function attentionTag(r) { return r.isPending ? 'DATA_GAP' : 'QA_ISSUE'; }
-  function attentionText(r) { return `${r.date || 'undated'} · ${r.analyte_en}: ${r.value_raw || r.interpretation_en || 'pending'}${r.unit_raw ? ` ${r.unit_raw}` : ''}${r.flag_raw ? ` · source flag ${r.flag_raw}` : ''}`; }
+  function attentionText(r) { return `${r.date || 'undated'} · ${r.analyte_en}: ${r.value_raw || r.interpretation_en || 'pending'}${r.unit_raw ? ` ${r.unit_raw}` : ''}${r.flag_raw ? ` · source note ${r.flag_raw}` : ''}`; }
   function compareAttention(a, b) { const flagRank = (b.flag_raw || b.isPending ? 1 : 0) - (a.flag_raw || a.isPending ? 1 : 0); return flagRank || (b.time || 0) - (a.time || 0); }
   function tagHtml(tag, label = tag) { return `<span class="tag ${tagClass(tag)}">${escapeHtml(label)}</span>`; }
   function statusChipHtml(tag, label, jump, title) { return `<button type="button" class="tag tag-action ${tagClass(tag)}" data-jump="${escapeAttr(jump)}" title="${escapeAttr(title || '')}">${escapeHtml(label)}</button>`; }

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.0.33 - 2026-07-01
+
+- Integrated rendered genomics review payloads into the main Assessment board so genomics appears beside profile, review, timeline, and source sections.
+- Added pipeline-generated patient-friendly genomics summaries, source/QC summaries, and matched review cards to the v3 UI and legacy fallback without exposing raw genotype filenames or dense calls.
+- Exported alias-scoped genomics review data through `health ui` static `data.js` and added regression coverage for the privacy and UI contracts.
+
 ## 0.0.32 - 2026-06-30
 
 - Softened warning/disclaimer wording across the assessment board, genomics GUI, CLI review notes, reports, and docs while preserving explicit review tags and confirmation-first framing.

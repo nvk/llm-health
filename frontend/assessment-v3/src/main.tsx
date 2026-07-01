@@ -39,6 +39,7 @@ import {
   IconChartDots3,
   IconClipboardList,
   IconDatabase,
+  IconDna2,
   IconDownload,
   IconExternalLink,
   IconFlag,
@@ -62,7 +63,7 @@ import {
 } from 'recharts';
 
 type ThemeMode = 'light' | 'dark';
-type SectionId = 'profile' | 'review' | 'timeline' | 'sources';
+type SectionId = 'profile' | 'review' | 'genomics' | 'timeline' | 'sources';
 type TimeRange = 'all' | '30d' | '90d' | 'ytd' | '18mo';
 type TimelineMode = 'stack' | 'overlay';
 type ScaleMode = 'auto' | 'raw' | 'norm' | 'center' | 'pctmean' | 'pctfirst' | 'z' | 'log';
@@ -127,6 +128,95 @@ type ProfileContextPayload = Record<string, unknown> & {
   diagnosticGaps?: ProfileArtifact[];
   researchJobs?: ProfileArtifact[];
   sourceVault?: SourceVaultSummary;
+  genomicsSummary?: GenomicsSummaryPayload;
+};
+
+type GenomicsSummaryPayload = {
+  source_count?: number;
+  marker_count?: number;
+  card_count?: number;
+  lead?: string;
+  tags?: string[];
+};
+
+type PatientSummaryPayload = {
+  lead?: string;
+  bullets?: string[];
+  tags?: string[];
+};
+
+type GenomicsSourcePayload = {
+  profile_id?: string;
+  source_id?: string;
+  source_kind?: string;
+  assay_type?: string;
+  genome_build?: string;
+  marker_count?: number;
+  called_count?: number;
+  no_call_count?: number;
+  duplicate_marker_count?: number;
+  stored_variant_scope?: string;
+  stored_variant_count?: number;
+  clinical_grade?: boolean;
+  call_rate?: number;
+  tags?: string[];
+  imported_at?: string;
+};
+
+type GenomicsQcDetail = {
+  code?: string;
+  label?: string;
+};
+
+type GenomicsQcPayload = {
+  profile_id?: string;
+  source_id?: string;
+  marker_count?: number;
+  called_count?: number;
+  no_call_count?: number;
+  duplicate_marker_count?: number;
+  call_rate?: number;
+  warnings?: string[];
+  warning_details?: GenomicsQcDetail[];
+  generated_on?: string;
+};
+
+type GenomicCardPayload = {
+  inference_id?: string;
+  profile_id?: string;
+  finding_type?: string;
+  title?: string;
+  summary?: string;
+  patient_summary?: string;
+  evidence?: string[];
+  source_ids?: string[];
+  variant_ids?: string[];
+  related_observation_ids?: string[];
+  required_confirmation?: boolean;
+  discussion_target?: string;
+  confidence?: string;
+  status?: string;
+  tags?: string[];
+  created_at?: string;
+};
+
+type GenomicsReviewPayload = {
+  profile_id?: string;
+  sources?: {
+    count?: number;
+    variant_count?: number;
+    sources?: GenomicsSourcePayload[];
+  };
+  qc?: {
+    count?: number;
+    qc?: GenomicsQcPayload[];
+  };
+  crossrefs?: {
+    count?: number;
+    cards?: GenomicCardPayload[];
+  };
+  patient_summary?: PatientSummaryPayload;
+  notice?: string;
 };
 
 type HealthPayload = {
@@ -137,6 +227,7 @@ type HealthPayload = {
   reports?: RawReport[];
   wearable_daily?: RawWearable[];
   profile_context?: Record<string, Record<string, unknown>>;
+  genomics?: Record<string, GenomicsReviewPayload>;
   profiles?: ProfilePayload[];
   export_summary?: Record<string, unknown>;
 };
@@ -279,7 +370,7 @@ const SMOOTH_OPTIONS: ComboboxItem[] = [
 const OVERLAY_OPTIONS: ComboboxItem[] = [
   { value: 'smart', label: 'Smart overlay' },
   { value: 'current', label: 'Current domain' },
-  { value: 'flagged', label: 'Flagged first' },
+  { value: 'flagged', label: 'Source-note first' },
   { value: 'recent', label: 'Recent movement' },
   { value: 'core', label: 'Core markers' },
   { value: 'context', label: 'Context only' },
@@ -294,11 +385,14 @@ const TAG_LABELS: Record<string, string> = {
   CONTEXT: 'Context',
   INFERENCE: 'Inference',
   DATA_GAP: 'Data gap',
-  QA_ISSUE: 'QA issue',
+  QA_ISSUE: 'QA note',
+  TEST_CANDIDATE: 'Test candidate',
+  PROTOCOL_REVIEW: 'Protocol review',
   SPECIALIST_NOTE: 'Specialist note',
   FAMILY_HISTORY: 'Family history',
   HEREDITARY_RISK: 'Hereditary risk',
   FAMILY_PATTERN: 'Family pattern',
+  CONFIRM_FIRST: 'Confirm first',
 };
 
 function App() {
@@ -371,8 +465,8 @@ function App() {
             </Group>
 
             <Paper className="risk-card" p="sm" radius="lg">
-              <Group gap="xs" mb={4}><Badge color="red" variant="light">OWN-RISK</Badge><Text size="xs" fw={700}>Not medical advice</Text></Group>
-              <Text size="xs" c="dimmed">Local, de-identified review layer. Verify sources before decisions.</Text>
+              <Group gap="xs" mb={4}><Badge color="yellow" variant="light">LOCAL</Badge><Text size="xs" fw={700}>Review workspace</Text></Group>
+              <Text size="xs" c="dimmed">Private source review and follow-up planning. Verify sources before decisions.</Text>
             </Paper>
 
             <ScrollArea className="controls-scroll" type="auto">
@@ -452,7 +546,7 @@ function App() {
                 />
 
                 <Stack gap={6} className="toggle-stack">
-                  <Checkbox label="Source flag rings" checked={state.showFlags} onChange={(event) => update({ showFlags: event.currentTarget.checked })} />
+                  <Checkbox label="Source note rings" checked={state.showFlags} onChange={(event) => update({ showFlags: event.currentTarget.checked })} />
                   <Checkbox label="Exact date labels" checked={state.showLabels} onChange={(event) => update({ showLabels: event.currentTarget.checked })} />
                 </Stack>
               </Stack>
@@ -484,6 +578,7 @@ function App() {
               <Tabs.List>
                 <Tabs.Tab value="profile" leftSection={<IconClipboardList size={16} />}>Profile</Tabs.Tab>
                 <Tabs.Tab value="review" leftSection={<IconClipboardList size={16} />}>Review</Tabs.Tab>
+                <Tabs.Tab value="genomics" leftSection={<IconDna2 size={16} />}>Genomics</Tabs.Tab>
                 <Tabs.Tab value="timeline" leftSection={<IconTimeline size={16} />}>Timeline</Tabs.Tab>
                 <Tabs.Tab value="sources" leftSection={<IconDatabase size={16} />}>Sources</Tabs.Tab>
               </Tabs.List>
@@ -508,6 +603,13 @@ function App() {
                   state={state}
                   profileContext={profileContext}
                   setState={setState}
+                />
+              </Tabs.Panel>
+
+              <Tabs.Panel value="genomics" pt="lg">
+                <GenomicsBoard
+                  profileId={state.profile}
+                  genomics={currentGenomics(state.profile)}
                 />
               </Tabs.Panel>
 
@@ -558,6 +660,9 @@ function Header({ state, rows, allRows, series, profileOptions, profileContext, 
   const qaWarnings = rows.filter((row) => row.normalizationWarnings).length;
   const contextCount = profileArtifactCount(profileContext);
   const sourceVaultCount = sourceVaultCountFor(profileContext);
+  const genomics = currentGenomics(state.profile);
+  const genomicCards = genomicsCardCount(genomics);
+  const genomicMarkers = genomicsMarkerCount(genomics);
   const themeToggle = () => setState((current) => ({ ...current, theme: current.theme === 'dark' ? 'light' : 'dark' }));
   return (
     <Paper className="hero" p="xl" radius="xl">
@@ -570,7 +675,7 @@ function Header({ state, rows, allRows, series, profileOptions, profileContext, 
           </Group>
           <Title order={1}>Longitudinal health evidence</Title>
           <Text c="dimmed" maw={760} mt={6}>
-            Clean charts, source rows, context overlays, and deterministic flags from local de-identified data.
+            Clean charts, source rows, context overlays, genomics review cards, and source notes from local de-identified data.
           </Text>
         </div>
         <Group gap="xs">
@@ -587,12 +692,13 @@ function Header({ state, rows, allRows, series, profileOptions, profileContext, 
       </Group>
       <Group mt="lg" gap="sm" className="hero-metrics">
         <MetricPill label={`${series.length.toLocaleString()} chart series`} icon={<IconChartDots3 size={15} />} onClick={() => setState((current) => ({ ...current, section: 'timeline' }))} />
-        <MetricPill label={`${flagged.toLocaleString()} active flags`} icon={<IconFlag size={15} />} tone={flagged ? 'warn' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: flagged ? 'flags' : 'all' }))} />
+        <MetricPill label={`${flagged.toLocaleString()} active notes`} icon={<IconFlag size={15} />} tone={flagged ? 'warn' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: flagged ? 'flags' : 'all' }))} />
         {resolved ? <MetricPill label={`${resolved.toLocaleString()} resolved`} icon={<IconTimeline size={15} />} tone="ok" onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: 'resolved' }))} /> : null}
         <MetricPill label={`${pending.toLocaleString()} pending`} icon={<IconAlertTriangle size={15} />} tone={pending ? 'bad' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: pending ? 'pending' : 'all' }))} />
         {qa ? <MetricPill label={`${qa.toLocaleString()} normalized`} icon={<IconDatabase size={15} />} tone={qaWarnings ? 'warn' : 'ok'} onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: 'qa' }))} /> : null}
         {contextCount ? <MetricPill label={`${contextCount.toLocaleString()} context notes`} icon={<IconClipboardList size={15} />} tone="warn" onClick={() => setState((current) => ({ ...current, section: 'profile' }))} /> : null}
         {sourceVaultCount ? <MetricPill label={`${sourceVaultCount.toLocaleString()} vaulted sources`} icon={<IconDatabase size={15} />} tone="warn" onClick={() => setState((current) => ({ ...current, section: 'profile' }))} /> : null}
+        {genomics ? <MetricPill label={`${genomicCards || genomicMarkers} genomic ${genomicCards ? 'cards' : 'markers'}`} icon={<IconDna2 size={15} />} tone={genomicCards ? 'warn' : 'default'} onClick={() => setState((current) => ({ ...current, section: 'genomics' }))} /> : null}
         <MetricPill label={`latest ${latest || totalLatest || '—'}`} icon={<IconTimeline size={15} />} />
       </Group>
     </Paper>
@@ -618,6 +724,8 @@ function PatientProfileBoard({ profileId, profileOptions, profileContext, rows, 
   const familyHistory = safeArtifacts(profileContext.familyHistory);
   const hereditaryRisks = safeArtifacts(profileContext.hereditaryRisks);
   const specialistNotes = safeArtifacts(profileContext.specialistNotes);
+  const genomics = currentGenomics(profileId);
+  const genomicsSummary = profileContext.genomicsSummary;
   const gaps = safeArtifacts(profileContext.diagnosticGaps);
   const reviewCards = safeArtifacts(profileContext.quickReviewCards);
   const researchJobs = safeArtifacts(profileContext.researchJobs);
@@ -690,9 +798,10 @@ function PatientProfileBoard({ profileId, profileOptions, profileContext, rows, 
           <Title order={2}>{profileArtifactCount(profileContext).toLocaleString()}</Title>
           <Text size="sm" c="dimmed">profile/context artifacts</Text>
           <Divider my="sm" />
-          <ProfileFact label="Active flags" value={`${flags.length}`} tone={flags.length ? 'bad' : 'ok'} />
+          <ProfileFact label="Active source notes" value={`${flags.length}`} tone={flags.length ? 'bad' : 'ok'} />
           <ProfileFact label="Pending rows" value={`${pending.length}`} tone={pending.length ? 'warn' : 'ok'} />
           <ProfileFact label="Open gaps" value={`${gaps.length}`} tone={gaps.length ? 'warn' : 'ok'} />
+          <ProfileFact label="Genomic markers" value={`${genomicsMarkerCount(genomics) || genomicsSummary?.marker_count || 0}`} />
           <ProfileFact label="Vaulted sources" value={`${sourceVaultCountFor(profileContext)}`} />
         </Card>
       </SimpleGrid>
@@ -708,12 +817,13 @@ function PatientProfileBoard({ profileId, profileOptions, profileContext, rows, 
           </Group>
           <Stack gap="xs">
             {sourceVaultCountFor(profileContext) ? <SourceVaultSummaryRow summary={profileContext.sourceVault} /> : null}
-            {flags.length ? <PriorityRow title="Active source flags" detail={summarizeMarkers(flags)} tag="QA_ISSUE" onClick={() => setState((current) => ({ ...current, ...showAllProfileRows, section: 'sources', rowFocus: 'flags' }))} /> : null}
+            {genomics ? <PriorityRow title="Genomic review" detail={genomicsSummaryLine(genomics)} tag="INFERENCE" onClick={() => setState((current) => ({ ...current, section: 'genomics' }))} /> : null}
+            {flags.length ? <PriorityRow title="Active source notes" detail={summarizeMarkers(flags)} tag="QA_ISSUE" onClick={() => setState((current) => ({ ...current, ...showAllProfileRows, section: 'sources', rowFocus: 'flags' }))} /> : null}
             {pending.length ? <PriorityRow title="Pending / nonnumeric rows" detail={summarizeMarkers(pending)} tag="DATA_GAP" onClick={() => setState((current) => ({ ...current, ...showAllProfileRows, section: 'sources', rowFocus: 'pending' }))} /> : null}
-            {qa.length ? <PriorityRow title="Normalization QA" detail={`${qa.length} row(s) have translated/normalized display fields`} tag="QA_ISSUE" onClick={() => setState((current) => ({ ...current, ...showAllProfileRows, section: 'sources', rowFocus: 'qa' }))} /> : null}
+            {qa.length ? <PriorityRow title="Normalization notes" detail={`${qa.length} row(s) have translated/normalized display fields`} tag="QA_ISSUE" onClick={() => setState((current) => ({ ...current, ...showAllProfileRows, section: 'sources', rowFocus: 'qa' }))} /> : null}
             {gaps.slice(0, 4).map((gap) => <PriorityRow key={`${gap.title}-${gap.date}`} title={gap.title || 'Diagnostic gap'} detail={gapDetail(gap)} tag="DATA_GAP" />)}
-            {!sourceVaultCountFor(profileContext) && !flags.length && !pending.length && !qa.length && !gaps.length ? (
-              <Text c="dimmed">No active flags or gaps in this profile filter.</Text>
+            {!sourceVaultCountFor(profileContext) && !genomics && !flags.length && !pending.length && !qa.length && !gaps.length ? (
+              <Text c="dimmed">No active source notes or gaps in this profile filter.</Text>
             ) : null}
           </Stack>
         </Paper>
@@ -722,7 +832,7 @@ function PatientProfileBoard({ profileId, profileOptions, profileContext, rows, 
           <Group justify="space-between" mb="md">
             <div>
               <Title order={3}>Family & hereditary context</Title>
-              <Text size="sm" c="dimmed">Relationship graph and family-history clues. Context only, not diagnosis.</Text>
+              <Text size="sm" c="dimmed">Relationship graph and family-history clues for follow-up planning.</Text>
             </div>
             <Badge color={familyHistory.length || hereditaryRisks.length ? 'yellow' : 'gray'} variant="light">{familyRelationships.length} relations</Badge>
           </Group>
@@ -1037,7 +1147,7 @@ function buildInterviewText({ mode, profileId, profile, rows, wearableRows, prof
       ...intro,
       'Follow-up interview',
       '',
-      flags.length ? `Local watch items by marker/category: ${uniqueMarkerList(flags, 10)}.` : 'No active source-flagged rows are currently showing.',
+      flags.length ? `Local watch items by marker/category: ${uniqueMarkerList(flags, 10)}.` : 'No active source-note rows are currently showing.',
       pending.length ? `Pending or nonnumeric source rows to reconcile: ${uniqueMarkerList(pending, 10)}.` : 'No active pending rows are currently showing.',
       '',
       '1) Timeline and recent changes',
@@ -1131,10 +1241,15 @@ function SummaryGrid({ rows, series, state, profileContext, setState }: {
   const derived = rows.filter((row) => row.derived).length;
   const contextCount = profileArtifactCount(profileContext);
   const vaulted = sourceVaultCountFor(profileContext);
+  const genomics = currentGenomics(state.profile);
+  const genomicSources = genomicsSourceCount(genomics);
+  const genomicMarkers = genomicsMarkerCount(genomics);
+  const genomicCards = genomicsCardCount(genomics);
   const cards = [
     { title: 'Evidence points', value: numeric.toLocaleString(), note: `${series.length} plotted series`, icon: IconChartDots3, section: 'timeline' as SectionId },
     ...(contextCount || vaulted ? [{ title: 'Context packet', value: contextCount.toLocaleString(), note: vaulted ? `${vaulted} vaulted source(s)` : 'Records and notes, not chart dots', icon: IconClipboardList, section: 'profile' as SectionId }] : []),
-    { title: 'Active flags', value: flagged.toLocaleString(), note: flagged ? 'Click to audit' : resolved ? `${resolved} resolved by later tests` : 'None in filter', icon: IconFlag, section: 'sources' as SectionId, focus: flagged ? 'flags' as RowFocus : resolved ? 'resolved' as RowFocus : 'all' as RowFocus },
+    ...(genomics ? [{ title: 'Genomics', value: (genomicCards || genomicMarkers).toLocaleString(), note: `${genomicSources} source(s) · ${genomicMarkers} markers`, icon: IconDna2, section: 'genomics' as SectionId }] : []),
+    { title: 'Source notes', value: flagged.toLocaleString(), note: flagged ? 'Click to review' : resolved ? `${resolved} resolved by later tests` : 'None in filter', icon: IconFlag, section: 'sources' as SectionId, focus: flagged ? 'flags' as RowFocus : resolved ? 'resolved' as RowFocus : 'all' as RowFocus },
     { title: 'Pending rows', value: pending.toLocaleString(), note: 'Never plotted as dots', icon: IconAlertTriangle, section: 'sources' as SectionId, focus: 'pending' as RowFocus },
     { title: 'Derived rows', value: derived.toLocaleString(), note: 'Visible as Derived tags', icon: IconActivity, section: 'sources' as SectionId },
   ];
@@ -1156,6 +1271,223 @@ function SummaryGrid({ rows, series, state, profileContext, setState }: {
         );
       })}
     </SimpleGrid>
+  );
+}
+
+function GenomicsBoard({ profileId, genomics }: {
+  profileId: string;
+  genomics: GenomicsReviewPayload | null;
+}) {
+  if (!genomics) {
+    return (
+      <Paper p="xl" radius="xl" className="empty-card genomics-empty">
+        <Group justify="space-between" align="flex-start" gap="lg">
+          <div>
+            <Title order={3}>Genomics review</Title>
+            <Text c="dimmed" maw={760} mt={6}>
+              No rendered genomics review payload is included for {displayAlias(profileId)} yet.
+              Import or cross-reference a local genotype file through the genomics pipeline, then refresh this board.
+            </Text>
+          </div>
+          <Button component="a" href={genomicsUiHref(profileId)} target="_blank" rel="noreferrer" leftSection={<IconDna2 size={16} />}>
+            Open genomics UI
+          </Button>
+        </Group>
+      </Paper>
+    );
+  }
+
+  const sources = safeGenomicsSources(genomics);
+  const qcRows = safeGenomicsQc(genomics);
+  const cards = safeGenomicsCards(genomics);
+  const summary = genomics.patient_summary || {};
+  const bullets = safeStrings(summary.bullets).slice(0, 4);
+  const tags = safeTags(summary.tags);
+  const callRates = qcRows.map((row) => numericValue(row.call_rate)).filter((value): value is number => value !== null);
+  const bestCallRate = callRates.length ? Math.max(...callRates) : null;
+  const lead = clean(summary.lead) || genomicsSummaryLine(genomics);
+  const warningNotes = uniqueStrings(qcRows.flatMap((row) => safeStrings(row.warning_details?.map((detail) => detail.label) || row.warnings))).slice(0, 5);
+
+  return (
+    <Stack gap="lg" className="genomics-board">
+      <Paper p="lg" radius="xl" className="board-card genomics-hero">
+        <Group justify="space-between" align="flex-start" gap="lg">
+          <div>
+            <Group gap="xs" mb="xs">
+              <ThemeIcon radius="xl" variant="light"><IconDna2 size={20} /></ThemeIcon>
+              <Title order={3}>Genomics review</Title>
+            </Group>
+            <Text className="genomics-lead">{lead}</Text>
+            {bullets.length ? (
+              <Stack gap={5} mt="sm">
+                {bullets.map((bullet) => <Text key={bullet} size="sm" c="dimmed">• {bullet}</Text>)}
+              </Stack>
+            ) : null}
+          </div>
+          <Stack gap="xs" align="flex-end">
+            <InlineTags tags={tags.length ? tags : ['CONTEXT', 'CONFIRM_FIRST']} />
+            <Button variant="light" component="a" href={genomicsUiHref(profileId)} target="_blank" rel="noreferrer" leftSection={<IconExternalLink size={16} />}>
+              Open local genomics UI
+            </Button>
+          </Stack>
+        </Group>
+      </Paper>
+
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="md">
+        <Card p="lg" radius="xl" className="stat-card">
+          <Text size="xs" fw={800} c="dimmed" tt="uppercase" lts={1}>Sources</Text>
+          <Title order={2}>{genomicsSourceCount(genomics).toLocaleString()}</Title>
+          <Text size="sm" c="dimmed">local genotype source summaries</Text>
+        </Card>
+        <Card p="lg" radius="xl" className="stat-card">
+          <Text size="xs" fw={800} c="dimmed" tt="uppercase" lts={1}>Markers</Text>
+          <Title order={2}>{genomicsMarkerCount(genomics).toLocaleString()}</Title>
+          <Text size="sm" c="dimmed">saved matched markers for review</Text>
+        </Card>
+        <Card p="lg" radius="xl" className="stat-card">
+          <Text size="xs" fw={800} c="dimmed" tt="uppercase" lts={1}>Review cards</Text>
+          <Title order={2}>{genomicsCardCount(genomics).toLocaleString()}</Title>
+          <Text size="sm" c="dimmed">pipeline-generated discussion prompts</Text>
+        </Card>
+        <Card p="lg" radius="xl" className="stat-card">
+          <Text size="xs" fw={800} c="dimmed" tt="uppercase" lts={1}>Best call rate</Text>
+          <Title order={2}>{bestCallRate === null ? '—' : `${(bestCallRate * 100).toFixed(1)}%`}</Title>
+          <Text size="sm" c="dimmed">readable checked spots in the source</Text>
+        </Card>
+      </SimpleGrid>
+
+      <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
+        <Paper p="lg" radius="xl" className="board-card genomics-section">
+          <Group justify="space-between" align="flex-start" mb="md">
+            <div>
+              <Title order={3}>Source and QC summary</Title>
+              <Text size="sm" c="dimmed">Rendered source summaries from the local genomics pipeline; raw filenames and dense calls are not shown here.</Text>
+            </div>
+            <Badge variant="light">{qcRows.length} QC row(s)</Badge>
+          </Group>
+          <Stack gap="sm">
+            {sources.map((source) => {
+              const qc = qcRows.find((row) => row.source_id === source.source_id);
+              return <GenomicsSourceTile key={source.source_id || `${source.profile_id}-${source.imported_at}`} source={source} qc={qc} />;
+            })}
+            {!sources.length ? <Text c="dimmed">No source summaries were rendered.</Text> : null}
+            {warningNotes.length ? (
+              <div className="genomics-note-list">
+                <Text fw={900} size="sm">QC notes</Text>
+                {warningNotes.map((note) => <Text key={note} size="sm" c="dimmed">• {note}</Text>)}
+              </div>
+            ) : null}
+          </Stack>
+        </Paper>
+
+        <Paper p="lg" radius="xl" className="board-card genomics-section">
+          <Group justify="space-between" align="flex-start" mb="md">
+            <div>
+              <Title order={3}>Patient-friendly findings</Title>
+              <Text size="sm" c="dimmed">These one-liners come from the genomics review pipeline, not browser heuristics.</Text>
+            </div>
+            <Badge color={cards.length ? 'yellow' : 'gray'} variant="light">{cards.length} cards</Badge>
+          </Group>
+          <Stack gap="sm">
+            {cards.slice(0, 6).map((card, index) => <GenomicsFindingMini key={card.inference_id || `${card.title}-${index}`} card={card} />)}
+            {!cards.length ? <Text c="dimmed">No matched review cards are showing yet.</Text> : null}
+          </Stack>
+        </Paper>
+      </SimpleGrid>
+
+      {cards.length ? (
+        <Accordion multiple variant="separated" radius="xl" className="category-accordion genomics-accordion" defaultValue={cards.slice(0, 4).map((card, index) => card.inference_id || `genomics-card-${index}`)}>
+          {cards.map((card, index) => {
+            const value = card.inference_id || `genomics-card-${index}`;
+            const tag = primaryTag(card.tags);
+            const evidence = safeStrings(card.evidence).slice(0, 4);
+            return (
+              <Accordion.Item key={value} value={value}>
+                <Accordion.Control>
+                  <Group justify="space-between" pr="md" align="flex-start" wrap="nowrap">
+                    <div>
+                      <Text fw={900}>{clean(card.title) || 'Genomic review card'}</Text>
+                      <Text size="sm" c="dimmed" lineClamp={2}>{clean(card.patient_summary) || clean(card.summary) || 'Review prompt generated by the local genomics pipeline.'}</Text>
+                    </div>
+                    <Group gap="xs" wrap="nowrap">
+                      <Badge size="xs" className={`tag tag-${tag.toLowerCase()}`} data-tag={tag} title={tag}>{tagLabel(tag)}</Badge>
+                      {card.required_confirmation ? <Badge size="xs" color="yellow" variant="light">confirm first</Badge> : null}
+                    </Group>
+                  </Group>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Stack gap="sm">
+                    <Text>{clean(card.patient_summary) || clean(card.summary) || 'Review prompt generated by the local genomics pipeline.'}</Text>
+                    {card.summary && card.summary !== card.patient_summary ? <Text size="sm" c="dimmed">{card.summary}</Text> : null}
+                    <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
+                      <ProfileFact label="Type" value={clean(card.finding_type) || 'genomic context'} />
+                      <ProfileFact label="Confidence" value={clean(card.confidence) || 'review'} />
+                      <ProfileFact label="Status" value={clean(card.status) || 'review'} />
+                      <ProfileFact label="Discuss with" value={clean(card.discussion_target) || 'clinician'} />
+                    </SimpleGrid>
+                    {evidence.length ? (
+                      <div className="genomics-note-list">
+                        <Text fw={900} size="sm">Clinical references / evidence</Text>
+                        {evidence.map((item) => <Text key={item} size="sm" c="dimmed">• {item}</Text>)}
+                      </div>
+                    ) : null}
+                    <InlineTags tags={safeTags(card.tags)} />
+                  </Stack>
+                </Accordion.Panel>
+              </Accordion.Item>
+            );
+          })}
+        </Accordion>
+      ) : null}
+    </Stack>
+  );
+}
+
+function GenomicsSourceTile({ source, qc }: { source: GenomicsSourcePayload; qc?: GenomicsQcPayload }) {
+  const callRate = numericValue(source.call_rate ?? qc?.call_rate);
+  const tags = safeTags(source.tags);
+  return (
+    <div className="genomics-source-tile">
+      <Group justify="space-between" align="flex-start" gap="md">
+        <div>
+          <Text fw={900}>{clean(source.source_id) || 'genotype source'}</Text>
+          <Text size="sm" c="dimmed">
+            {clean(source.source_kind) || 'source'} · {clean(source.genome_build) || 'build unknown'} · {source.clinical_grade ? 'clinical-grade marked' : 'consumer/local source'}
+          </Text>
+        </div>
+        <InlineTags tags={tags.length ? tags : ['CONTEXT']} />
+      </Group>
+      <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="xs" mt="sm">
+        <ProfileFact label="Source markers" value={(source.marker_count ?? qc?.marker_count ?? 0).toLocaleString()} />
+        <ProfileFact label="Stored matched markers" value={(source.stored_variant_count ?? 0).toLocaleString()} />
+        <ProfileFact label="Called / no-call" value={`${(source.called_count ?? qc?.called_count ?? 0).toLocaleString()} / ${(source.no_call_count ?? qc?.no_call_count ?? 0).toLocaleString()}`} />
+        <ProfileFact label="Call rate" value={callRate === null ? '—' : `${(callRate * 100).toFixed(1)}%`} />
+      </SimpleGrid>
+    </div>
+  );
+}
+
+function GenomicsFindingMini({ card }: { card: GenomicCardPayload }) {
+  const tag = primaryTag(card.tags);
+  return (
+    <div className="context-mini genomics-finding-mini">
+      <Group justify="space-between" align="flex-start" mb={4}>
+        <Badge size="xs" className={`tag tag-${tag.toLowerCase()}`} data-tag={tag} title={tag}>{tagLabel(tag)}</Badge>
+        <Text size="xs" c="dimmed">{clean(card.confidence) || 'review'}</Text>
+      </Group>
+      <Text fw={900}>{clean(card.title) || 'Genomic finding'}</Text>
+      <Text size="sm" c="dimmed" lineClamp={3}>{clean(card.patient_summary) || clean(card.summary) || 'Review prompt generated by the local genomics pipeline.'}</Text>
+    </div>
+  );
+}
+
+function InlineTags({ tags }: { tags: string[] }) {
+  const safe = safeTags(tags);
+  if (!safe.length) return null;
+  return (
+    <Group gap={5} justify="flex-end">
+      {safe.slice(0, 6).map((tag) => <Badge key={tag} size="xs" className={`tag tag-${tag.toLowerCase()}`} data-tag={tag} title={tag}>{tagLabel(tag)}</Badge>)}
+    </Group>
   );
 }
 
@@ -1188,7 +1520,7 @@ function ReviewBoard({ rows, allRows, series, groups, state, profileContext, set
           title="Needs source audit"
           tag={flagged.length ? 'QA_ISSUE' : 'OBSERVED'}
           value={`${flagged.length} active`}
-          body={flagged.length ? summarizeMarkers(flagged) : resolved.length ? `${resolved.length} older flag(s) appear resolved by later follow-up.` : 'No active source flags in this filter.'}
+          body={flagged.length ? summarizeMarkers(flagged) : resolved.length ? `${resolved.length} older source note(s) appear resolved by later follow-up.` : 'No active source notes in this filter.'}
           onClick={() => setState((current) => ({ ...current, section: 'sources', rowFocus: flagged.length ? 'flags' : resolved.length ? 'resolved' : 'all' }))}
         />
         <ReviewCard
@@ -1206,7 +1538,7 @@ function ReviewBoard({ rows, allRows, series, groups, state, profileContext, set
           onClick={() => setState((current) => ({ ...current, section: 'timeline' }))}
         />
         <ReviewCard
-          title="Normalization QA"
+          title="Normalization notes"
           tag={normalizationWarnings.length ? 'QA_ISSUE' : 'OBSERVED'}
           value={normalizationWarnings.length ? `${normalizationWarnings.length} review` : `${normalizationRows.length} applied`}
           body={normalizationRows.length ? 'English display fields and approved unit conversions are used in charts/tables.' : exportNormalizationIssues ? 'Other filters have normalization notes.' : 'Display language and units already look consistent.'}
@@ -1263,7 +1595,7 @@ function ReviewBoard({ rows, allRows, series, groups, state, profileContext, set
                 <Text fw={800}>{domain.category}</Text>
                 <Badge color={domain.flags ? 'red' : 'gray'} variant="light">{domain.count} charts</Badge>
               </Group>
-              <Text size="sm" c="dimmed">{rowsByCategory.get(domain.category) || 0} observations · {domain.flags} active · {domain.resolved} resolved</Text>
+              <Text size="sm" c="dimmed">{rowsByCategory.get(domain.category) || 0} observations · {domain.flags} source notes · {domain.resolved} resolved</Text>
             </button>
           ))}
           {!domainCards.length ? (
@@ -1377,7 +1709,7 @@ function TimelineBoard({ series, state, setState }: {
                     <Group justify="space-between" pr="md">
                       <Text fw={900}>{category}</Text>
                       <Group gap="xs">
-                        {stats.flags ? <Badge color="red" variant="light">{stats.flags} active</Badge> : null}
+                        {stats.flags ? <Badge color="red" variant="light">{stats.flags} source notes</Badge> : null}
                         {!stats.flags && stats.resolved ? <Badge color="green" variant="light">{stats.resolved} resolved</Badge> : null}
                         <Badge variant="light">{list.length} charts</Badge>
                         <Badge color="gray" variant="light">latest {stats.latest || '—'}</Badge>
@@ -1428,7 +1760,7 @@ function SeriesCard({ series, state }: { series: Series; state: UiState }) {
           </Group>
           <Text size="xs" c="dimmed">{series.category} · {series.points.length} points · latest {latest ? `${latest.date} ${formatValue(latest.rawValue, series.unit)}` : '—'} · {series.ref?.label || 'range missing'}</Text>
         </div>
-        {flags ? <Badge color="red" variant="light">{flags} active</Badge> : resolved ? <Badge color="green" variant="light">{resolved} resolved</Badge> : <Badge color="gray" variant="light">clean</Badge>}
+        {flags ? <Badge color="red" variant="light">{flags} source notes</Badge> : resolved ? <Badge color="green" variant="light">{resolved} resolved</Badge> : <Badge color="gray" variant="light">clean</Badge>}
       </Group>
       <ChartCanvas series={prepared} state={state} />
     </Card>
@@ -1516,17 +1848,17 @@ function SourcesTable({ rows, totalRows, rowFocus, setState }: {
       <Group justify="space-between" align="flex-start" mb="md">
         <div>
           <Title order={3}>Source rows</Title>
-          <Text size="sm" c="dimmed">{visible.length.toLocaleString()} shown of {totalRows.toLocaleString()} matching rows. Resolved flags are historical, not active alerts.</Text>
+          <Text size="sm" c="dimmed">{visible.length.toLocaleString()} shown of {totalRows.toLocaleString()} matching rows. Resolved source notes are historical, not active alerts.</Text>
         </div>
         <SegmentedControl
-          data={[{ value: 'all', label: 'All' }, { value: 'flags', label: 'Active' }, { value: 'resolved', label: 'Resolved' }, { value: 'pending', label: 'Pending' }, { value: 'numeric', label: 'Numeric' }, { value: 'qa', label: 'QA' }]}
+          data={[{ value: 'all', label: 'All' }, { value: 'flags', label: 'Notes' }, { value: 'resolved', label: 'Resolved' }, { value: 'pending', label: 'Pending' }, { value: 'numeric', label: 'Numeric' }, { value: 'qa', label: 'QA' }]}
           value={rowFocus}
           onChange={(value) => setState((current) => ({ ...current, rowFocus: value as RowFocus }))}
         />
       </Group>
       <Table.ScrollContainer minWidth={980}>
         <Table className="source-table" verticalSpacing="sm" highlightOnHover>
-          <Table.Thead><Table.Tr><Table.Th>Date</Table.Th><Table.Th>Domain</Table.Th><Table.Th>Marker</Table.Th><Table.Th>Result</Table.Th><Table.Th>Reference</Table.Th><Table.Th>Flag</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>Date</Table.Th><Table.Th>Domain</Table.Th><Table.Th>Marker</Table.Th><Table.Th>Result</Table.Th><Table.Th>Reference</Table.Th><Table.Th>Source note</Table.Th><Table.Th>Source</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
             {visible.map((row) => <SourceTableRow key={row.id} row={row} />)}
             {!visible.length ? <Table.Tr><Table.Td colSpan={7}><Text c="dimmed" ta="center" py="xl">No source rows in this focus.</Text></Table.Td></Table.Tr> : null}
@@ -2049,9 +2381,9 @@ function selectOverlaySeries(series: Series[], state: UiState): OverlayPick {
     const fallback = rankSeries(domainLabs.length ? domainLabs : labs, state);
     return {
       series: capOverlay([...context, ...flagged, ...fallback]),
-      title: 'Flagged-marker overlay',
-      note: 'Source-flagged series first, then nearest useful comparators',
-      badge: 'flags first',
+      title: 'Source-note overlay',
+      note: 'Series with source notes first, then nearest useful comparators',
+      badge: 'notes first',
     };
   }
 
@@ -2082,8 +2414,8 @@ function selectOverlaySeries(series: Series[], state: UiState): OverlayPick {
     series: capOverlay([...context, ...smartBase]),
     title: 'Smart overlay comparison',
     note: state.category === 'All categories'
-      ? 'Auto-picked context, flagged rows, and representative domain markers'
-      : `Auto-picked context, flagged rows, and high-signal ${state.category} markers`,
+      ? 'Auto-picked context, source-note rows, and representative domain markers'
+      : `Auto-picked context, source-note rows, and high-signal ${state.category} markers`,
     badge: 'smart',
   };
 }
@@ -2213,6 +2545,7 @@ function buildProfiles(labRows: LabPoint[], wearableRows: WearablePoint[]): Comb
   labRows.forEach((row) => ids.add(row.profileId));
   wearableRows.forEach((row) => ids.add(row.profileId));
   Object.keys(DATA.profile_context || {}).forEach((id) => ids.add(id));
+  Object.keys(DATA.genomics || {}).forEach((id) => ids.add(id));
   if (!ids.size) ['rod', 'cara'].forEach((id) => ids.add(id));
   return [...ids].filter(isSafeAlias).sort((a, b) => profileRank(a) - profileRank(b) || a.localeCompare(b)).map((id) => ({ value: id, label: displayAlias(id) }));
 }
@@ -2284,9 +2617,80 @@ function sourceVaultCountFor(context: ProfileContextPayload): number {
   return Number.isFinite(count) ? count : 0;
 }
 
+function currentGenomics(profileId: string): GenomicsReviewPayload | null {
+  const payload = DATA.genomics?.[profileId];
+  return payload && typeof payload === 'object' ? payload : null;
+}
+
+function genomicsSourceCount(genomics: GenomicsReviewPayload | null): number {
+  if (!genomics) return 0;
+  const count = numericValue(genomics.sources?.count);
+  if (count !== null) return count;
+  return safeGenomicsSources(genomics).length;
+}
+
+function genomicsMarkerCount(genomics: GenomicsReviewPayload | null): number {
+  if (!genomics) return 0;
+  const count = numericValue(genomics.sources?.variant_count);
+  if (count !== null) return count;
+  return safeGenomicsSources(genomics).reduce((sum, source) => sum + Number(source.stored_variant_count || 0), 0);
+}
+
+function genomicsCardCount(genomics: GenomicsReviewPayload | null): number {
+  if (!genomics) return 0;
+  const count = numericValue(genomics.crossrefs?.count);
+  if (count !== null) return count;
+  return safeGenomicsCards(genomics).length;
+}
+
+function genomicsSummaryLine(genomics: GenomicsReviewPayload): string {
+  const lead = clean(genomics.patient_summary?.lead);
+  if (lead) return lead;
+  const cards = safeGenomicsCards(genomics);
+  const topics = uniqueStrings(cards.map((card) => clean(card.patient_summary).split(' — ', 1)[0]).filter(Boolean)).slice(0, 3);
+  if (topics.length) return `Genetic review cards include ${topics.join(', ')}.`;
+  if (genomicsMarkerCount(genomics)) return `${genomicsMarkerCount(genomics).toLocaleString()} matched genetic markers are saved for review.`;
+  return 'No specific genomics matches are showing yet.';
+}
+
+function genomicsUiHref(profileId: string): string {
+  const params = new URLSearchParams({ profile: profileId });
+  if (location.protocol === 'file:') return `http://127.0.0.1:8766/genomics/ui?${params.toString()}`;
+  return `/genomics/ui?${params.toString()}`;
+}
+
+function safeGenomicsSources(genomics: GenomicsReviewPayload | null): GenomicsSourcePayload[] {
+  const sources = genomics?.sources?.sources;
+  return Array.isArray(sources) ? sources.filter((source): source is GenomicsSourcePayload => !!source && typeof source === 'object') : [];
+}
+
+function safeGenomicsQc(genomics: GenomicsReviewPayload | null): GenomicsQcPayload[] {
+  const rows = genomics?.qc?.qc;
+  return Array.isArray(rows) ? rows.filter((row): row is GenomicsQcPayload => !!row && typeof row === 'object') : [];
+}
+
+function safeGenomicsCards(genomics: GenomicsReviewPayload | null): GenomicCardPayload[] {
+  const cards = genomics?.crossrefs?.cards;
+  return Array.isArray(cards) ? cards.filter((card): card is GenomicCardPayload => !!card && typeof card === 'object') : [];
+}
+
+function safeStrings(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(clean).filter(Boolean);
+}
+
+function safeTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return uniqueStrings(value.map((item) => clean(item).toUpperCase()).filter((item) => /^[A-Z0-9_]+$/.test(item)));
+}
+
+function uniqueStrings(value: string[]): string[] {
+  return [...new Set(value.map(clean).filter(Boolean))];
+}
+
 function primaryTag(tags: string[] | undefined): string {
   const ordered = ['QA_ISSUE', 'DATA_GAP', 'HEREDITARY_RISK', 'FAMILY_HISTORY', 'SPECIALIST_NOTE', 'INFERENCE', 'CONTEXT', 'OBSERVED'];
-  const safe = new Set((tags || []).map(clean).filter(Boolean));
+  const safe = new Set(safeTags(tags || []));
   return ordered.find((tag) => safe.has(tag)) || [...safe][0] || 'CONTEXT';
 }
 
@@ -2303,7 +2707,7 @@ function patientHistoryItems(profileId: string, rows: LabPoint[], context: Profi
       kind: 'lab',
       date,
       title: `${list.length} lab/source row(s)`,
-      status: flags ? `${flags} active flag(s)` : pending ? `${pending} pending` : 'observed',
+      status: flags ? `${flags} active source note(s)` : pending ? `${pending} pending` : 'observed',
       summary: categories.slice(0, 6).join(', '),
       tags: flags ? ['QA_ISSUE'] : pending ? ['DATA_GAP'] : ['OBSERVED'],
     };
@@ -2566,6 +2970,11 @@ function parseNumber(value: unknown): number | null {
   if (!match) return null;
   const n = Number(match[0]);
   return Number.isFinite(n) ? n : null;
+}
+
+function numericValue(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  return parseNumber(value);
 }
 
 function parseDate(value: string): number {

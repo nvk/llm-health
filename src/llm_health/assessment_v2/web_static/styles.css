@@ -64,6 +64,22 @@ button {
   cursor: pointer;
   transition: transform .12s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease;
 }
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink);
+  padding: .58rem .8rem;
+  text-decoration: none;
+  font-weight: 760;
+}
+.button-link:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
 button:hover { transform: translateY(-1px); }
 button:focus-visible, input:focus-visible, select:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--accent), transparent 55%);
@@ -138,7 +154,7 @@ a { color: var(--accent-2); font-weight: 750; }
 .muted { color: var(--muted); font-size: .82rem; margin-top: .2rem; }
 .top-actions { display: flex; gap: .55rem; flex-wrap: wrap; justify-content: end; align-items: start; max-width: 520px; }
 .profile-state { display: flex; gap: .35rem; flex-wrap: wrap; justify-content: end; flex-basis: 100%; min-height: 1.65rem; }
-.summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin-bottom: .9rem; }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .75rem; margin-bottom: .9rem; }
 .metric, .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .metric { padding: .85rem 1rem; }
 .metric .label { color: var(--muted); text-transform: uppercase; letter-spacing: .09em; font-size: .7rem; font-weight: 850; }
@@ -203,6 +219,7 @@ button.domain-card:hover {
 .review-card { border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); padding: .85rem; }
 .review-card strong { display: block; margin-bottom: .45rem; }
 .review-card div { line-height: 1.42; margin: .25rem 0; }
+.review-card header { display: flex; justify-content: space-between; align-items: start; gap: .65rem; margin-bottom: .35rem; }
 .review-card.gap-card { border-color: color-mix(in srgb, var(--warn), var(--line) 65%); }
 .review-card.qa-card { border-color: color-mix(in srgb, var(--warn), var(--line) 55%); }
 .review-card.ok-card { border-color: color-mix(in srgb, var(--good), var(--line) 60%); }
@@ -240,6 +257,51 @@ button.tag-action.wearable, button.tag-action.inference { color: var(--info); }
 :root[data-theme="dark"] button.tag-action.inference { color: var(--info); }
 
 .weight-rail { margin-bottom: .75rem; }
+.genomics-summary { display: grid; gap: .75rem; margin-bottom: .85rem; }
+.genomics-hero-card,
+.genomics-source-card {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 14px;
+  background: var(--surface-2);
+  padding: .85rem;
+}
+.genomics-hero-card h4 {
+  margin: .25rem 0 .35rem;
+  font-size: 1rem;
+  letter-spacing: -.01em;
+}
+.genomics-hero-card ul,
+.genomics-card ul {
+  margin: .4rem 0 0 1.1rem;
+  padding: 0;
+  color: var(--muted);
+}
+.genomics-metrics,
+.genomics-source-list,
+.genomics-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: .75rem;
+}
+.genomics-source-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+  align-items: start;
+}
+.genomics-source-card p,
+.genomics-card p {
+  color: var(--muted);
+  line-height: 1.42;
+}
+.genomics-card details {
+  margin-top: .55rem;
+}
+.genomics-card summary {
+  cursor: pointer;
+  font-weight: 850;
+}
 .charts { display: grid; gap: .75rem; }
 .category-section { display: grid; gap: .65rem; border: 1px solid var(--line); border-radius: 18px; padding: .65rem; background: color-mix(in srgb, var(--surface-2), transparent 35%); }
 .category-head { display: flex; justify-content: space-between; gap: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-size: .72rem; font-weight: 850; padding: .1rem .2rem; }

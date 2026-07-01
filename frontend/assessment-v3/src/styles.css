@@ -8,7 +8,7 @@
   --muted: #667085;
   --accent: #2f6fb2;
   --accent-soft: #eaf2ff;
-  --flag: #b64035;
+  --flag: #9b6a5e;
   --range-band: #dff2e6;
   --range-line: #74a68a;
   --amber: #f2b84b;
@@ -303,6 +303,40 @@ body {
     var(--field-grain),
     color-mix(in srgb, var(--paper-soft) 94%, transparent);
   background-size: 10px 10px, auto;
+}
+.genomics-board .stat-card {
+  cursor: default;
+}
+.genomics-hero {
+  border-left: 4px solid color-mix(in srgb, var(--accent) 76%, var(--border));
+}
+.genomics-lead {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -.015em;
+  max-width: 58rem;
+}
+.genomics-source-tile,
+.genomics-note-list {
+  padding: .85rem .95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--corner-md);
+  background:
+    var(--field-grain),
+    color-mix(in srgb, var(--paper-soft) 94%, transparent);
+  background-size: 10px 10px, auto;
+}
+.genomics-section {
+  overflow: hidden;
+}
+.genomics-finding-mini {
+  min-height: 7.25rem;
+}
+.genomics-accordion .mantine-Accordion-panel {
+  padding-top: .35rem;
+}
+.genomics-empty {
+  border-left: 4px solid color-mix(in srgb, var(--accent) 70%, var(--border));
 }
 .interview-textarea textarea {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;

@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.33** | Integrates genomics into the main Assessment board with patient-friendly summaries, source/QC cards, and static-export privacy coverage. |
 | **0.0.32** | Softens review-warning language across the app, routes the genomics GUI through a server-side review pipeline, and adds patient-friendly genomics summaries. |
 | **0.0.31** | Expands `health genomics` to a release-pinned 805-row clinical marker catalog with source/confirmation metadata while keeping sensitive, specialty, and deferred markers out of default matching. |
 | **0.0.30** | Adds localhost genomics SNP matching GUI and changes imports to store only source fingerprints, sparse matched SNP calls, and findings by default. |

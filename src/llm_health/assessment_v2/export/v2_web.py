@@ -22,6 +22,9 @@ from llm_health.assessment_v2.normalization import normalize_observation_rows
 from llm_health.config import resolve_store_path
 from llm_health.core.models import EnrolledProfile
 from llm_health.core.privacy import PrivacyError, assert_safe_payload, validate_profile_alias
+from llm_health.genomics import GenomicsStore
+from llm_health.genomics.pipeline import genomics_review_payload
+from llm_health.stores import LocalHealthStore
 
 
 @dataclass(frozen=True)
@@ -58,7 +61,8 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
     wearable_daily = _safe_profile_rows(_read_optional_csv_dicts(wearable_daily_csv))
     profile_context = _profile_context(observations)
     _merge_local_health_context(profile_context)
-    profiles = _profile_payloads(observations, wearable_daily, profile_context)
+    genomics = _local_genomics_payloads(profile_context)
+    profiles = _profile_payloads(observations, wearable_daily, profile_context, genomics)
     for profile in profiles:
         profile_context.setdefault(profile["profile_id"], {})
 
@@ -71,6 +75,7 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
         "reports": reports,
         "wearable_daily": wearable_daily,
         "profile_context": profile_context,
+        "genomics": genomics,
         "profiles": profiles,
         "export_summary": {
             "observations": len(observations),
@@ -78,6 +83,7 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
             "reports": len(reports),
             "wearable_daily": len(wearable_daily),
             "profiles": [profile["profile_id"] for profile in profiles],
+            "genomics_profiles": sorted(genomics),
         },
     }
 
@@ -184,6 +190,7 @@ def _profile_payloads(
     observations: list[dict[str, str]],
     wearable_daily: list[dict[str, str]],
     profile_context: dict[str, Any],
+    genomics: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Return alias-only profile metadata for UI selectors, including zero-data enrollments."""
 
@@ -207,6 +214,8 @@ def _profile_payloads(
         add(row.get("profile_id"), role=row.get("family_role"))
     for profile_id in profile_context:
         add(profile_id)
+    for profile_id in (genomics or {}):
+        add(profile_id, tags=["CONTEXT", "INFERENCE"])
     for profile in _enrolled_profiles_from_hub():
         add(
             profile.get("profile_id"),
@@ -262,6 +271,67 @@ def _enrolled_profiles_from_hub() -> list[dict[str, Any]]:
             }
         )
     return profiles
+
+
+def _local_genomics_payloads(profile_context: dict[str, Any]) -> dict[str, Any]:
+    """Return rendered, alias-scoped genomics review payloads for the static board.
+
+    The Assessment UI should not read raw genotype files or dense calls.  This export
+    uses the same local genomics review pipeline as the standalone genomics GUI and
+    carries only source summaries, QC notes, patient summaries, and matched review
+    cards into ``data.js``.
+    """
+
+    try:
+        store_path = resolve_store_path()
+    except Exception:
+        return {}
+    genomics_root = store_path / "genomics"
+    if not genomics_root.exists():
+        return {}
+
+    store = LocalHealthStore(store_path)
+    genomics_store = GenomicsStore(store_path)
+    profiles = {
+        source.profile_id for source in genomics_store.sources()
+    } | {inference.profile_id for inference in genomics_store.inferences()}
+    payloads: dict[str, Any] = {}
+    for profile in sorted(profiles):
+        if not store.profile_exists(profile):
+            continue
+        try:
+            payload = genomics_review_payload(store, profile, limit=80)
+        except (PrivacyError, ValueError):
+            continue
+        _trim_genomics_source_fingerprints(payload)
+        if not _artifact_is_safe(payload):
+            continue
+        payloads[profile] = payload
+        context = profile_context.setdefault(profile, {})
+        context["genomicsSummary"] = _compact_genomics_context(payload)
+    return payloads
+
+
+def _trim_genomics_source_fingerprints(payload: dict[str, Any]) -> None:
+    sources = payload.get("sources", {}).get("sources", [])
+    if not isinstance(sources, list):
+        return
+    for source in sources:
+        if isinstance(source, dict):
+            source.pop("file_sha256", None)
+
+
+def _compact_genomics_context(payload: dict[str, Any]) -> dict[str, Any]:
+    patient_summary = payload.get("patient_summary") or {}
+    sources = payload.get("sources") or {}
+    crossrefs = payload.get("crossrefs") or {}
+    return {
+        "source_count": int(sources.get("count") or 0),
+        "marker_count": int(sources.get("variant_count") or 0),
+        "card_count": int(crossrefs.get("count") or 0),
+        "lead": _safe_artifact_text(patient_summary.get("lead")),
+        "tags": _safe_tags(patient_summary.get("tags")) or ["CONTEXT"],
+    }
 
 
 def _merge_local_health_context(profile_context: dict[str, Any]) -> None:

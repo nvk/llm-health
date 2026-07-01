@@ -18,7 +18,7 @@
     </div>
 
     <section class="sidebar-note" aria-label="Review note">
-      <span class="tag qa">OWN-RISK</span>
+      <span class="tag context">LOCAL</span>
       <p>Private, local review board for source checks and follow-up planning.</p>
     </section>
 
@@ -93,7 +93,7 @@
       <div>
         <p class="eyebrow">OBSERVED · DERIVED · CONTEXT · QA</p>
         <h2>Longitudinal review board</h2>
-        <p class="lede">Filtered labs, wearables, flags, timelines, and source rows.</p>
+        <p class="lede">Filtered labs, wearables, genomics, timelines, and source rows.</p>
         <p class="own-risk-line">Local review layer — check source rows for decision-relevant items.</p>
       </div>
       <div class="top-actions">
@@ -107,6 +107,7 @@
 
     <nav class="tabs" id="tabs" aria-label="Primary sections">
       <button type="button" data-section="review" aria-pressed="false">Review</button>
+      <button type="button" data-section="genomics" aria-pressed="false">Genomics</button>
       <button type="button" data-section="timeline" aria-pressed="false">Timeline</button>
       <button type="button" data-section="sources" aria-pressed="false">Sources</button>
     </nav>
@@ -123,6 +124,18 @@
       <div class="domain-map" id="domainMap" aria-live="polite"></div>
     </section>
 
+    <section class="panel genomics-section" id="genomicsSection" hidden>
+      <div class="section-head">
+        <div>
+          <h3>Genomics review</h3>
+          <p>Pipeline-rendered source summaries and review cards. Raw genotype files are not shown here.</p>
+        </div>
+        <a id="genomicsUiLink" class="button-link" href="/genomics/ui" target="_blank" rel="noreferrer">Open local genomics UI</a>
+      </div>
+      <div id="genomicsSummary" class="genomics-summary"></div>
+      <div id="genomicsCards" class="genomics-cards" aria-live="polite"></div>
+    </section>
+
     <section class="panel timeline-section" id="timelineSection">
       <div class="section-head sticky-head">
         <div>
@@ -131,7 +144,7 @@
         </div>
         <div class="legend">
           <span><i class="swatch line"></i>marker</span>
-          <span><i class="swatch flag"></i>source flag</span>
+          <span><i class="swatch flag"></i>source note</span>
           <span><i class="swatch weight"></i>weight</span>
           <span><i class="swatch band"></i>reference</span>
         </div>
@@ -149,7 +162,7 @@
           <p class="help-text">Review plotted points, source notes, ranges, and provenance here.</p>
           <div class="source-focus" id="sourceFocusControls" role="group" aria-label="Source row focus">
             <button type="button" data-row-focus="all" aria-pressed="false">All rows</button>
-            <button type="button" data-row-focus="flags" aria-pressed="false">Flags</button>
+            <button type="button" data-row-focus="flags" aria-pressed="false">Notes</button>
             <button type="button" data-row-focus="pending" aria-pressed="false">Pending</button>
             <button type="button" data-row-focus="numeric" aria-pressed="false">Numeric</button>
           </div>
