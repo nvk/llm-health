@@ -19,7 +19,7 @@ from llm_health.assessment_v2.export.old_web import (
     _read_csv_dicts,
 )
 from llm_health.assessment_v2.normalization import normalize_observation_rows
-from llm_health.config import resolve_store_path
+from llm_health.config import resolve_store_path, resolve_wiki_root
 from llm_health.core.models import EnrolledProfile
 from llm_health.core.privacy import PrivacyError, assert_safe_payload, validate_profile_alias
 from llm_health.genomics import GenomicsStore
@@ -39,7 +39,22 @@ class V2WebExport:
     latest_weights: dict[str, float]
 
 
-def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
+@dataclass(frozen=True)
+class V2WebRefresh:
+    """Summary of an automatic refresh of an existing static dashboard export."""
+
+    output_dir: Path
+    data_path: Path
+    mode: str
+    profile_count: int
+
+
+def export_v2_web(
+    wiki_root: Path,
+    output_dir: Path,
+    *,
+    store_root: Path | None = None,
+) -> V2WebExport:
     """Generate a local static UX build from canonical de-identified wiki CSVs."""
 
     wiki_root = wiki_root.expanduser().resolve()
@@ -60,9 +75,15 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
     reports = _scrub_private_source_fields(reports)
     wearable_daily = _safe_profile_rows(_read_optional_csv_dicts(wearable_daily_csv))
     profile_context = _profile_context(observations)
-    _merge_local_health_context(profile_context)
-    genomics = _local_genomics_payloads(profile_context)
-    profiles = _profile_payloads(observations, wearable_daily, profile_context, genomics)
+    _merge_local_health_context(profile_context, store_root=store_root)
+    genomics = _local_genomics_payloads(profile_context, store_root=store_root)
+    profiles = _profile_payloads(
+        observations,
+        wearable_daily,
+        profile_context,
+        genomics,
+        store_root=store_root,
+    )
     for profile in profiles:
         profile_context.setdefault(profile["profile_id"], {})
 
@@ -106,6 +127,125 @@ def export_v2_web(wiki_root: Path, output_dir: Path) -> V2WebExport:
             for profile, context in profile_context.items()
             if _float_or_none(str(context.get("currentWeightKg", ""))) is not None
         },
+    )
+
+
+DATA_JS_PREFIX = "window.HEALTH_ASSESSMENT_V2 = "
+LOCAL_CONTEXT_KEYS = frozenset(
+    {
+        "contextNotes",
+        "familyRelationships",
+        "familyHistory",
+        "hereditaryRisks",
+        "specialistNotes",
+        "quickReviewCards",
+        "diagnosticGaps",
+        "researchJobs",
+        "sourceVault",
+        "genomicsSummary",
+    }
+)
+
+
+def refresh_existing_v2_web_from_hub(
+    store_root: Path,
+    *,
+    output_dir: Path | None = None,
+    wiki_root: Path | None = None,
+) -> V2WebRefresh | None:
+    """Refresh an existing local Assessment board after alias/profile writes.
+
+    If a wiki root is configured we regenerate the full static export. If not, we still update
+    the existing ``data.js`` with alias-only HUB profiles, family/context artifacts, and genomics
+    review payloads. This keeps the profile dropdown fresh after ``health enroll`` and
+    ``health family`` without requiring users to remember a manual ``health ui --no-open`` step.
+    """
+
+    store_root = store_root.expanduser().resolve()
+    output_dir = (output_dir or store_root / "v2-web").expanduser().resolve()
+    data_path = output_dir / "data.js"
+    if not data_path.exists():
+        return None
+
+    resolved_wiki_root = wiki_root or resolve_wiki_root()
+    if resolved_wiki_root is not None:
+        observations_csv = resolved_wiki_root / "output/data/lab-observations-long.csv"
+        if observations_csv.exists():
+            export = export_v2_web(
+                resolved_wiki_root,
+                output_dir,
+                store_root=store_root,
+            )
+            payload = _read_v2_data_js(export.data_path) or {}
+            profiles = payload.get("profiles") if isinstance(payload, dict) else []
+            return V2WebRefresh(
+                output_dir=export.output_dir,
+                data_path=export.data_path,
+                mode="full_export",
+                profile_count=len(profiles) if isinstance(profiles, list) else 0,
+            )
+
+    payload = _read_v2_data_js(data_path)
+    if payload is None:
+        return None
+    observations = (
+        payload.get("observations") if isinstance(payload.get("observations"), list) else []
+    )
+    wearable_daily = (
+        payload.get("wearable_daily") if isinstance(payload.get("wearable_daily"), list) else []
+    )
+    profile_context = payload.get("profile_context")
+    if not isinstance(profile_context, dict):
+        profile_context = {}
+    for context in profile_context.values():
+        if isinstance(context, dict):
+            for key in LOCAL_CONTEXT_KEYS:
+                context.pop(key, None)
+    _merge_local_health_context(profile_context, store_root=store_root)
+    genomics = _local_genomics_payloads(profile_context, store_root=store_root)
+    profiles = _profile_payloads(
+        observations,
+        wearable_daily,
+        profile_context,
+        genomics,
+        store_root=store_root,
+    )
+    payload["generated"] = date.today().isoformat()
+    payload["profile_context"] = profile_context
+    payload["genomics"] = genomics
+    payload["profiles"] = profiles
+    summary = payload.setdefault("export_summary", {})
+    if isinstance(summary, dict):
+        summary["profiles"] = [profile["profile_id"] for profile in profiles]
+        summary["genomics_profiles"] = sorted(genomics)
+    assert_safe_payload(payload)
+    _write_v2_data_js(data_path, payload)
+    return V2WebRefresh(
+        output_dir=output_dir,
+        data_path=data_path,
+        mode="incremental_hub_refresh",
+        profile_count=len(profiles),
+    )
+
+
+def _read_v2_data_js(path: Path) -> dict[str, Any] | None:
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith(DATA_JS_PREFIX):
+        return None
+    raw = text[len(DATA_JS_PREFIX) :].strip()
+    if raw.endswith(";"):
+        raw = raw[:-1]
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _write_v2_data_js(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(
+        DATA_JS_PREFIX + json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + ";\n",
+        encoding="utf-8",
     )
 
 
@@ -191,6 +331,8 @@ def _profile_payloads(
     wearable_daily: list[dict[str, str]],
     profile_context: dict[str, Any],
     genomics: dict[str, Any] | None = None,
+    *,
+    store_root: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Return alias-only profile metadata for UI selectors, including zero-data enrollments."""
 
@@ -216,7 +358,7 @@ def _profile_payloads(
         add(profile_id)
     for profile_id in (genomics or {}):
         add(profile_id, tags=["CONTEXT", "INFERENCE"])
-    for profile in _enrolled_profiles_from_hub():
+    for profile in _enrolled_profiles_from_hub(store_root=store_root):
         add(
             profile.get("profile_id"),
             birth_year=profile.get("birth_year"),
@@ -232,13 +374,16 @@ def _profile_payloads(
     )
 
 
-def _enrolled_profiles_from_hub() -> list[dict[str, Any]]:
+def _enrolled_profiles_from_hub(*, store_root: Path | None = None) -> list[dict[str, Any]]:
     """Read alias-only enrolled profiles from the configured llm-health HUB, if present."""
 
-    try:
-        store_path = resolve_store_path()
-    except Exception:
-        return []
+    if store_root is None:
+        try:
+            store_path = resolve_store_path()
+        except Exception:
+            return []
+    else:
+        store_path = store_root.expanduser().resolve()
     path = store_path / "profiles.jsonl"
     if not path.exists():
         return []
@@ -273,7 +418,11 @@ def _enrolled_profiles_from_hub() -> list[dict[str, Any]]:
     return profiles
 
 
-def _local_genomics_payloads(profile_context: dict[str, Any]) -> dict[str, Any]:
+def _local_genomics_payloads(
+    profile_context: dict[str, Any],
+    *,
+    store_root: Path | None = None,
+) -> dict[str, Any]:
     """Return rendered, alias-scoped genomics review payloads for the static board.
 
     The Assessment UI should not read raw genotype files or dense calls.  This export
@@ -282,10 +431,13 @@ def _local_genomics_payloads(profile_context: dict[str, Any]) -> dict[str, Any]:
     cards into ``data.js``.
     """
 
-    try:
-        store_path = resolve_store_path()
-    except Exception:
-        return {}
+    if store_root is None:
+        try:
+            store_path = resolve_store_path()
+        except Exception:
+            return {}
+    else:
+        store_path = store_root.expanduser().resolve()
     genomics_root = store_path / "genomics"
     if not genomics_root.exists():
         return {}
@@ -334,7 +486,11 @@ def _compact_genomics_context(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _merge_local_health_context(profile_context: dict[str, Any]) -> None:
+def _merge_local_health_context(
+    profile_context: dict[str, Any],
+    *,
+    store_root: Path | None = None,
+) -> None:
     """Merge alias-only llm-health HUB artifacts into the dashboard context.
 
     The Assessment board is primarily a longitudinal lab/wearable chart, but new
@@ -345,15 +501,15 @@ def _merge_local_health_context(profile_context: dict[str, Any]) -> None:
     ``data.js``.
     """
 
-    context_notes = _read_hub_jsonl("context_notes.jsonl")
-    specialist_notes = _read_hub_jsonl("specialist_notes.jsonl")
-    hereditary_risks = _read_hub_jsonl("hereditary_risk_notes.jsonl")
-    family_relationships = _read_hub_jsonl("family_relationships.jsonl")
-    family_history = _read_hub_jsonl("family_history_events.jsonl")
-    quick_review_cards = _read_hub_jsonl("quick_review_cards.jsonl")
-    diagnostic_gaps = _read_hub_jsonl("diagnostic_gaps.jsonl")
-    research_jobs = _read_hub_jsonl("research_jobs.jsonl")
-    source_vault_rows = _read_source_vault_manifest()
+    context_notes = _read_hub_jsonl("context_notes.jsonl", store_root=store_root)
+    specialist_notes = _read_hub_jsonl("specialist_notes.jsonl", store_root=store_root)
+    hereditary_risks = _read_hub_jsonl("hereditary_risk_notes.jsonl", store_root=store_root)
+    family_relationships = _read_hub_jsonl("family_relationships.jsonl", store_root=store_root)
+    family_history = _read_hub_jsonl("family_history_events.jsonl", store_root=store_root)
+    quick_review_cards = _read_hub_jsonl("quick_review_cards.jsonl", store_root=store_root)
+    diagnostic_gaps = _read_hub_jsonl("diagnostic_gaps.jsonl", store_root=store_root)
+    research_jobs = _read_hub_jsonl("research_jobs.jsonl", store_root=store_root)
+    source_vault_rows = _read_source_vault_manifest(store_root=store_root)
 
     for row in context_notes:
         profile = _safe_alias(row.get("profile_id"))
@@ -566,11 +722,14 @@ def _merge_local_health_context(profile_context: dict[str, Any]) -> None:
             context["sourceVault"] = summary
 
 
-def _read_hub_jsonl(filename: str) -> list[dict[str, Any]]:
-    try:
-        store_path = resolve_store_path()
-    except Exception:
-        return []
+def _read_hub_jsonl(filename: str, *, store_root: Path | None = None) -> list[dict[str, Any]]:
+    if store_root is None:
+        try:
+            store_path = resolve_store_path()
+        except Exception:
+            return []
+    else:
+        store_path = store_root.expanduser().resolve()
     path = store_path / filename
     if not path.exists():
         return []
@@ -587,11 +746,14 @@ def _read_hub_jsonl(filename: str) -> list[dict[str, Any]]:
     return rows
 
 
-def _read_source_vault_manifest() -> list[dict[str, Any]]:
-    try:
-        store_path = resolve_store_path()
-    except Exception:
-        return []
+def _read_source_vault_manifest(*, store_root: Path | None = None) -> list[dict[str, Any]]:
+    if store_root is None:
+        try:
+            store_path = resolve_store_path()
+        except Exception:
+            return []
+    else:
+        store_path = store_root.expanduser().resolve()
     path = store_path / "source-vault" / "manifest.jsonl"
     if not path.exists():
         return []

@@ -17,7 +17,10 @@ from llm_health.agreement import (
 )
 from llm_health.archive import create_archive, list_archives, verify_archive
 from llm_health.assessment_v2.bridge import import_latest_for_profile
-from llm_health.assessment_v2.export.v2_web import export_v2_web
+from llm_health.assessment_v2.export.v2_web import (
+    export_v2_web,
+    refresh_existing_v2_web_from_hub,
+)
 from llm_health.config import (
     load_config,
     resolve_store_path,
@@ -875,6 +878,7 @@ def cmd_enroll(args: argparse.Namespace) -> int:
     if profile.role:
         print(f"  Role/context: {profile.role}")
     print(f"  Tags: {', '.join(profile.tags)}")
+    _refresh_existing_ui_after_hub_write(store)
     return 0
 
 
@@ -996,7 +1000,7 @@ def cmd_ui(args: argparse.Namespace) -> int:
         )
         return 4
     output_dir = Path(args.output).expanduser() if args.output else store.root / "v2-web"
-    export = export_v2_web(wiki_root, output_dir)
+    export = export_v2_web(wiki_root, output_dir, store_root=store.root)
     index_path = export.output_dir / "index.html"
     print(
         f"exported UI: {export.observation_count:,} observations, "
@@ -1423,6 +1427,7 @@ def cmd_family(args: argparse.Namespace) -> int:
             )
         )
         print(f"  Tags: {', '.join(relationship.tags)}")
+        _refresh_existing_ui_after_hub_write(store)
         return 0
 
     if args.family_command == "condition":
@@ -1440,6 +1445,7 @@ def cmd_family(args: argparse.Namespace) -> int:
         print(f"Recorded family history: {event.profile_id} · {event.condition} · {event.status}")
         print(f"  Evidence: {event.evidence}")
         print(f"  Tags: {', '.join(event.tags)}")
+        _refresh_existing_ui_after_hub_write(store)
         return 0
 
     if args.family_command == "tree":
@@ -1466,6 +1472,26 @@ def cmd_family(args: argparse.Namespace) -> int:
         return 0
 
     raise ValueError(f"unknown family command: {args.family_command}")
+
+
+def _refresh_existing_ui_after_hub_write(store: LocalHealthStore) -> None:
+    """Best-effort refresh of an existing local Assessment board export.
+
+    Profile/family writes are local HUB updates. Users tend to keep the static board open, so update
+    its already-exported ``data.js`` when present. This is best-effort and must not block the
+    underlying health write.
+    """
+
+    try:
+        refresh = refresh_existing_v2_web_from_hub(store.root)
+    except Exception:
+        print(
+            "ui_refresh: skipped existing Assessment Board export refresh",
+            file=sys.stderr,
+        )
+        return
+    if refresh is not None:
+        print(f"ui_refresh: {refresh.mode}; profiles={refresh.profile_count}")
 
 
 def _format_observation_value(observation: Observation) -> str:

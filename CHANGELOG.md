@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Auto-refresh an existing local Assessment Board export after `health enroll` and
+  `health family add/condition` so newly enrolled relatives appear in the profile dropdown without
+  a manual `health ui --no-open` rerun.
+
 ## 0.0.34 - 2026-07-02
 
 - Added opt-in dyslexia, ADHD, and direct autism-spectrum GWAS research marker matching behind `--include-research-markers`, with 111 non-diagnostic research rows excluded from default sparse imports.

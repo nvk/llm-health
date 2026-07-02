@@ -823,6 +823,79 @@ class CliTests(unittest.TestCase):
             self.assertIn("sol · birth 2018", profiles.stdout)
             self.assertIn("lele · birth 2026-01", profiles.stdout)
 
+    def test_profile_and_family_writes_refresh_existing_static_ui_export(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data_path = Path(tmp) / "v2-web" / "data.js"
+            data_path.parent.mkdir()
+            data_path.write_text(
+                "window.HEALTH_ASSESSMENT_V2 = "
+                + json.dumps(
+                    {
+                        "generated": "2026-07-01",
+                        "observations": [],
+                        "normalization_issues": [],
+                        "reports": [],
+                        "wearable_daily": [],
+                        "profile_context": {},
+                        "genomics": {},
+                        "profiles": [{"profile_id": "rod"}, {"profile_id": "cara"}],
+                        "export_summary": {"profiles": ["rod", "cara"]},
+                    },
+                    separators=(",", ":"),
+                )
+                + ";\n",
+                encoding="utf-8",
+            )
+
+            michael = self.run_cli(
+                "enroll",
+                "--alias",
+                "michael",
+                "--birth-year",
+                "1949",
+                "--accept-risk",
+                store=tmp,
+            )
+            self.assertEqual(michael.returncode, 0, michael.stderr)
+            self.assertIn("ui_refresh: incremental_hub_refresh", michael.stdout)
+            payload = json.loads(
+                data_path.read_text(encoding="utf-8").removeprefix(
+                    "window.HEALTH_ASSESSMENT_V2 = "
+                ).rstrip(";\n")
+            )
+            self.assertIn("michael", payload["export_summary"]["profiles"])
+            michael_profile = next(
+                profile for profile in payload["profiles"] if profile["profile_id"] == "michael"
+            )
+            self.assertEqual(michael_profile["birth_year"], 1949)
+
+            relationship = self.run_cli(
+                "family",
+                "add",
+                "--profile",
+                "cara",
+                "--relative",
+                "michael",
+                "--relation",
+                "father",
+                store=tmp,
+            )
+            self.assertEqual(relationship.returncode, 0, relationship.stderr)
+            self.assertIn("ui_refresh: incremental_hub_refresh", relationship.stdout)
+            payload = json.loads(
+                data_path.read_text(encoding="utf-8").removeprefix(
+                    "window.HEALTH_ASSESSMENT_V2 = "
+                ).rstrip(";\n")
+            )
+            self.assertEqual(
+                payload["profile_context"]["cara"]["familyRelationships"][0]["relative_id"],
+                "michael",
+            )
+            self.assertEqual(
+                payload["profile_context"]["michael"]["familyRelationships"][0]["relation"],
+                "father",
+            )
+
     def test_report_exports_doctor_and_family_pdfs(self):
         with tempfile.TemporaryDirectory() as tmp:
             ingest = self.run_cli(
