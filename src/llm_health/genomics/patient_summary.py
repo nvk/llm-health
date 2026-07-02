@@ -42,8 +42,13 @@ def build_patient_summary(
             ],
         }
 
-    topics = patient_card_topics(cards, limit=4)
+    research_cards = [card for card in cards if _is_research_context_card(card)]
+    review_cards = [card for card in cards if not _is_research_context_card(card)]
+    topics = patient_card_topics(review_cards, limit=4)
+    research_topics = patient_card_topics(research_cards, limit=3)
     tags = [VisibleTag.CONTEXT.value, "CONFIRM_FIRST"]
+    if research_cards:
+        tags.insert(1, "RESEARCH_CONTEXT")
     if _has_consumer_or_low_quality_gap(qc_rows):
         tags.insert(1, VisibleTag.DATA_GAP.value)
 
@@ -51,8 +56,15 @@ def build_patient_summary(
     marker_word = "genetic marker" if marker_count == 1 else "genetic markers"
     card_count = len(cards)
     card_word = "card" if card_count == 1 else "cards"
+    research_count = len(research_cards)
+    research_card_word = "card" if research_count == 1 else "cards"
 
     bullets: list[str] = []
+    if research_topics:
+        bullets.append(
+            f"Research-only context is shown separately: {_format_list(research_topics)}. "
+            "This is not a diagnosis, screening result, prognosis, or polygenic score."
+        )
     if topics:
         bullets.append(
             f"Matches below include {_format_list(topics)}. "
@@ -74,6 +86,12 @@ def build_patient_summary(
         "lead": (
             f"This profile has {source_count} local genotype {source_word} loaded, "
             f"with {marker_count} {marker_word} saved for review."
+            if not research_count
+            else (
+                f"This profile has {source_count} local genotype {source_word} loaded, "
+                f"with {marker_count} {marker_word} saved for review, including "
+                f"{research_count} research-context {research_card_word}."
+            )
         ),
         "bullets": bullets,
     }
@@ -107,6 +125,26 @@ def patient_card_summary(card: GenomicInference) -> str:
     """
 
     hay = f"{card.title} {card.summary} {card.finding_type}".lower()
+    if "dyslexia" in hay:
+        return (
+            "dyslexia GWAS research context — matched markers are research-only, "
+            "not a diagnosis or polygenic score."
+        )
+    if "adhd" in hay or "attention-deficit" in hay or "attention deficit" in hay:
+        return (
+            "ADHD GWAS research context — matched markers are research-only, "
+            "not a diagnosis or polygenic score."
+        )
+    if "autism" in hay or "autism spectrum" in hay:
+        return (
+            "autism spectrum GWAS research context — matched markers are research-only, "
+            "not a diagnosis or polygenic score."
+        )
+    if "research_trait_context" in card.finding_type.lower():
+        return (
+            "research-only trait marker context — use for background only, not as a "
+            "diagnosis or screening result."
+        )
     if any(term in hay for term in ("ugt1a1", "bilirubin", "gilbert")):
         return (
             "bilirubin / possible Gilbert syndrome — may help explain a harmless bilirubin pattern "
@@ -183,6 +221,11 @@ def _confirmation_line(qc_rows: list[GenomicQC] | list[dict[str, Any]]) -> str:
         "Confirm important findings with a clinician or clinical lab if they would "
         "affect decisions."
     )
+
+
+def _is_research_context_card(card: GenomicInference) -> bool:
+    hay = " ".join([card.finding_type, card.title, *card.tags]).lower()
+    return "research" in hay or "dyslexia" in hay or "adhd" in hay or "autism" in hay
 
 
 def _has_consumer_or_low_quality_gap(qc_rows: list[GenomicQC] | list[dict[str, Any]]) -> bool:

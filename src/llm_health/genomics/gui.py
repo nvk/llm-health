@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import mimetypes
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -82,6 +84,11 @@ def render_genomics_import_ui() -> str:
     button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(47, 111, 178, .18); }
     button.secondary { background: var(--paper-2); color: var(--ink); border: 1px solid var(--line); }
     button:disabled { opacity: .55; cursor: not-allowed; }
+    .header-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+    .nav-link { display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem; border: 1px solid var(--line); border-radius: 14px; background: var(--paper-2); color: var(--ink); padding: .75rem 1.05rem; font-weight: 850; text-decoration: none; transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; }
+    .nav-link:hover { transform: translateY(-1px); border-color: var(--accent); box-shadow: 0 8px 18px rgba(47, 111, 178, .12); }
+    .nav-link.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .nav-link.active { color: var(--accent); }
     .grid { display: grid; grid-template-columns: minmax(340px, .9fr) minmax(460px, 1.35fr); gap: var(--space-5); align-items: start; }
     .form-stack { display: grid; gap: var(--space-4); }
     .field { min-width: 0; }
@@ -92,6 +99,10 @@ def render_genomics_import_ui() -> str:
     .status { min-height: 3rem; margin: 0; padding: var(--space-3); border: 1px solid var(--line); border-radius: 14px; background: var(--paper-2); font-family: var(--mono); color: var(--muted); white-space: pre-wrap; }
     .cards { overflow-x: auto; margin-top: var(--space-4); }
     .card { border: 1px solid var(--line); border-radius: 16px; background: var(--paper-2); padding: var(--space-4); }
+    .section-title { margin: var(--space-5) 0 var(--space-3); font-size: 1.05rem; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+    .research-callout { border-color: #c9b3ff; background: linear-gradient(135deg, #fbf8ff 0%, #f3edff 100%); box-shadow: 0 12px 28px rgba(94, 61, 171, .09); }
+    .research-callout h3 { margin: 0 0 var(--space-2); font-size: 1.25rem; }
+    .research-card { border-top: 1px solid rgba(94, 61, 171, .18); padding-top: var(--space-3); margin-top: var(--space-3); }
     .table-wrap { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--paper); }
     table.review-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .9rem; }
     .review-table th { text-align: left; color: var(--muted); font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; background: var(--paper-2); padding: .8rem .9rem; border-bottom: 1px solid var(--line); }
@@ -132,6 +143,8 @@ def render_genomics_import_ui() -> str:
       .grid, .metric { grid-template-columns: 1fr; }
       header { display: block; }
       header button { margin-top: var(--space-4); }
+      .header-actions { justify-content: stretch; margin-top: var(--space-4); }
+      .header-actions > * { flex: 1 1 100%; }
       .actions { display: grid; }
       .actions button { width: 100%; }
       .review-table { min-width: 860px; }
@@ -146,7 +159,9 @@ def render_genomics_import_ui() -> str:
         <h1>Genomics SNP matching</h1>
         <p>Run local matching against a 23andMe/Ancestry-style raw genotype text file and save only the matched review artifacts by default.</p>
       </div>
-      <div>
+      <div class="header-actions" aria-label="Local site navigation">
+        <a class="nav-link primary" id="healthHome" href="/health/ui/">Health home</a>
+        <a class="nav-link active" id="genomicsSelf" href="/genomics/ui">Genomics import</a>
         <button type="button" class="secondary" id="refresh">Refresh status</button>
       </div>
     </header>
@@ -173,6 +188,7 @@ def render_genomics_import_ui() -> str:
 
           <div class="checkbox-group">
             <label class="checkbox-row"><input type="checkbox" id="clinicalGrade"><span>Mark as clinical-grade source</span></label>
+            <label class="checkbox-row"><input type="checkbox" id="includeResearch"><span>Include opt-in research trait marker lists (dyslexia, ADHD, and autism spectrum GWAS lead SNPs)</span></label>
             <label class="checkbox-row"><input type="checkbox" id="acceptRisk"><span>I accept the genetic privacy/family-risk implications for this local import</span></label>
           </div>
 
@@ -209,7 +225,7 @@ def render_genomics_import_ui() -> str:
     const $ = id => document.getElementById(id);
     const state = { profile: new URLSearchParams(location.search).get('profile') || '' };
     $('refresh').onclick = refresh;
-    $('profile').onchange = () => { state.profile = $('profile').value; refresh(); };
+    $('profile').onchange = () => { state.profile = $('profile').value; syncNav(); refresh(); };
     $('importBtn').onclick = importFile;
     $('crossrefBtn').onclick = runCrossref;
 
@@ -222,6 +238,7 @@ def render_genomics_import_ui() -> str:
         $('profile').innerHTML = profiles.map(p => `<option value="${escAttr(p.profile_id)}">${esc(p.profile_id)}${p.role ? ' · ' + esc(p.role) : ''}</option>`).join('');
         if (state.profile && profiles.some(p => p.profile_id === state.profile)) $('profile').value = state.profile;
         state.profile = $('profile').value || profiles[0]?.profile_id || '';
+        syncNav();
         await refresh();
       } catch (err) {
         setStatus(`Profile load failed: ${err.message}`);
@@ -231,12 +248,23 @@ def render_genomics_import_ui() -> str:
     async function refresh() {
       if (!state.profile) return;
       try {
+        syncNav();
         setStatus(`Profile: ${state.profile}`);
         const review = await getJson(`/genomics/review?profile_id=${encodeURIComponent(state.profile)}`);
         renderReview(review);
       } catch (err) {
         setStatus(`Refresh failed: ${err.message}`);
       }
+    }
+
+    function syncNav() {
+      const homeParams = new URLSearchParams();
+      if (state.profile) homeParams.set('profile', state.profile);
+      homeParams.set('section', 'genomics');
+      $('healthHome').href = `/health/ui/?${homeParams.toString()}`;
+      const genomicsParams = new URLSearchParams();
+      if (state.profile) genomicsParams.set('profile', state.profile);
+      $('genomicsSelf').href = `/genomics/ui${genomicsParams.toString() ? '?' + genomicsParams.toString() : ''}`;
     }
 
     async function importFile() {
@@ -252,10 +280,12 @@ def render_genomics_import_ui() -> str:
           profile_id: $('profile').value,
           source_kind: $('sourceKind').value,
           clinical_grade: $('clinicalGrade').checked,
+          include_research_markers: $('includeResearch').checked,
           accept_genetic_risk: $('acceptRisk').checked,
           content
         });
-        setStatus(`Matched source ${payload.source.source_id}\nmarkers_scanned: ${payload.source.marker_count}\nstored_variants: ${payload.stored_variant_count}\nstorage_scope: ${payload.stored_variant_scope}\ncall_rate: ${payload.source.call_rate.toFixed(3)}\nstored_cards: ${payload.stored_inferences}\nprivacy: ${payload.privacy}`);
+        const diag = payload.match_diagnostics || {};
+        setStatus(`Matched source ${payload.source.source_id}\nmarkers_scanned: ${payload.source.marker_count}\nstored_variants: ${payload.stored_variant_count}\nstorage_scope: ${payload.stored_variant_scope}\ncall_rate: ${payload.source.call_rate.toFixed(3)}\nstored_cards: ${payload.stored_inferences}\nresearch_marker_opt_in: ${diag.include_research_markers ? 'yes' : 'no'}\nresearch_markers_checked: ${diag.research_catalog_markers ?? 0}\nresearch_marker_matches: ${diag.research_marker_matches ?? 0}\nresearch_effect_marker_matches: ${diag.research_effect_marker_matches ?? 0}\nresearch_scopes: ${diag.research_scope_summary || 'none'}\ndyslexia_gwas_markers_checked: ${diag.dyslexia_gwas_catalog_markers ?? 0}\ndyslexia_gwas_marker_matches: ${diag.dyslexia_gwas_marker_matches ?? 0}\ndyslexia_gwas_effect_marker_matches: ${diag.dyslexia_gwas_effect_marker_matches ?? 0}\nadhd_gwas_marker_matches: ${diag.adhd_gwas_marker_matches ?? 0}\nautism_spectrum_gwas_marker_matches: ${diag.autism_spectrum_gwas_marker_matches ?? 0}\nresearch_match_note: ${diag.note || 'not reported'}\nprivacy: ${payload.privacy}`);
         renderMetrics({ count: 1, variant_count: payload.stored_variant_count, sources: [payload.source] }, { qc: [payload.qc] }, payload.patient_summary);
         renderCards(payload.inferences || []);
       } catch (err) {
@@ -307,7 +337,7 @@ def render_genomics_import_ui() -> str:
 
     function renderPatientSummary(summary) {
       if (!summary) return '<p class="summary-lead">Summary will appear after the local review pipeline runs.</p>';
-      const tags = (summary.tags || []).map(tag => `<span class="tag ${tag === 'DATA_GAP' ? 'gap' : tag === 'CONTEXT' ? 'context' : ''}">${esc(tag)}</span>`).join('');
+      const tags = (summary.tags || []).map(tag => `<span class="tag ${tag === 'DATA_GAP' ? 'gap' : tag === 'CONTEXT' || tag === 'RESEARCH_CONTEXT' ? 'context' : ''}">${esc(tag)}</span>`).join('');
       const bullets = (summary.bullets || []).map(item => `<li>${esc(item)}</li>`).join('');
       return `${tags}<p class="summary-lead">${esc(summary.lead || '')}</p>${bullets ? `<ul>${bullets}</ul>` : ''}`;
     }
@@ -317,7 +347,24 @@ def render_genomics_import_ui() -> str:
         $('cards').innerHTML = '<p>No genomic cross-reference cards found yet.</p>';
         return;
       }
-      $('cards').innerHTML = `<div class="table-wrap"><table class="review-table">
+      const researchCards = cards.filter(isResearchCard);
+      const reviewCards = cards.filter(card => !isResearchCard(card));
+      const sections = [];
+      if (researchCards.length) {
+        sections.push(`<div class="card research-callout">
+          <h3>Research context — not diagnostic</h3>
+          <p class="muted">These cards are separated from clinical/medication review items so they do not look like diagnoses or action prompts.</p>
+          ${researchCards.map(renderResearchCard).join('')}
+        </div>`);
+      }
+      if (reviewCards.length) {
+        sections.push(`<h3 class="section-title">Clinical / medication review cards</h3>${renderCardTable(reviewCards)}`);
+      }
+      $('cards').innerHTML = sections.join('');
+    }
+
+    function renderCardTable(cards) {
+      return `<div class="table-wrap"><table class="review-table">
         <thead><tr>
           <th>Marker</th>
           <th>Tags</th>
@@ -333,6 +380,22 @@ def render_genomics_import_ui() -> str:
           <td><details class="evidence"><summary>${(card.evidence || []).length} item(s)</summary><ul>${(card.evidence || []).map(item => `<li>${esc(item)}</li>`).join('')}</ul></details></td>
         </tr>`).join('')}</tbody>
       </table></div>`;
+    }
+
+    function renderResearchCard(card) {
+      return `<div class="research-card">
+        <strong class="marker-title">${esc(card.title)}</strong>
+        <p><span class="tag context">RESEARCH_CONTEXT</span> <span class="tag gap">NOT_DIAGNOSTIC</span></p>
+        <p class="plain-summary">${esc(cardPatientSummary(card))}</p>
+        <p class="technical-summary">${esc(card.summary)}</p>
+        <details class="evidence"><summary>${(card.evidence || []).length} evidence / context item(s)</summary><ul>${(card.evidence || []).map(item => `<li>${esc(item)}</li>`).join('')}</ul></details>
+      </div>`;
+    }
+
+    function isResearchCard(card) {
+      const tags = (card.tags || []).join(' ');
+      const hay = `${card.finding_type || ''} ${card.title || ''} ${tags}`.toLowerCase();
+      return hay.includes('research') || hay.includes('dyslexia') || hay.includes('adhd') || hay.includes('autism');
     }
 
 
@@ -361,6 +424,48 @@ def render_genomics_import_ui() -> str:
 """
 
 
+def render_health_ui_missing() -> str:
+    """Return a privacy-safe placeholder when the Assessment board is not exported yet."""
+
+    return """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>llm-health · Health home</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f5f7fa; color: #162033; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    main { max-width: 760px; margin: 2rem; padding: 2rem; border: 1px solid #d8e0ea; border-radius: 22px; background: #fff; box-shadow: 0 12px 28px rgba(30, 42, 62, .07); }
+    h1 { margin: 0; letter-spacing: -.03em; }
+    p { color: #66748a; line-height: 1.55; }
+    code { font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; }
+    a { display: inline-flex; margin-top: 1rem; border: 1px solid #d8e0ea; border-radius: 14px; padding: .75rem 1.05rem; color: #162033; text-decoration: none; font-weight: 850; background: #eef3f7; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Health home is not exported yet</h1>
+    <p>Run <code>health ui --no-open</code> once for this HUB, then refresh this page. The Genomics import page can serve that exported local board here without showing raw paths.</p>
+    <a href="/genomics/ui">Back to Genomics import</a>
+  </main>
+</body>
+</html>
+"""
+
+
+def health_ui_target(root: Path, request_path: str) -> Path | None:
+    """Return a safe static Assessment UI file for a /health/ui/ request."""
+
+    ui_root = (root / "v2-web").resolve()
+    relative = request_path.removeprefix("/health/ui/") or "index.html"
+    if relative.endswith("/"):
+        relative += "index.html"
+    target = (ui_root / relative).resolve()
+    if target != ui_root and ui_root not in target.parents:
+        return None
+    return target
+
+
 
 class GenomicsGuiServer(ThreadingHTTPServer):
     def __init__(self, server_address, health_store: LocalHealthStore):
@@ -376,6 +481,13 @@ class GenomicsGuiHandler(BaseHTTPRequestHandler):
         try:
             if parsed.path in {"/", "/genomics", "/genomics/ui"}:
                 self._send_html(render_genomics_import_ui())
+                return
+            if parsed.path == "/health/ui":
+                suffix = f"?{parsed.query}" if parsed.query else ""
+                self._send_redirect(f"/health/ui/{suffix}")
+                return
+            if parsed.path == "/health/ui/" or parsed.path.startswith("/health/ui/"):
+                self._send_health_ui(parsed.path)
                 return
             if parsed.path == "/health":
                 self._send_json(
@@ -442,6 +554,7 @@ class GenomicsGuiHandler(BaseHTTPRequestHandler):
                     content=content,
                     source_kind=str(payload.get("source_kind") or "auto"),
                     clinical_grade=bool(payload.get("clinical_grade")),
+                    include_research_markers=bool(payload.get("include_research_markers")),
                     accept_genetic_risk=bool(payload.get("accept_genetic_risk")),
                     run_crossref=True,
                 )
@@ -486,6 +599,33 @@ class GenomicsGuiHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _send_health_ui(self, request_path: str) -> None:
+        target = health_ui_target(self.server.health_store.root, request_path)
+        ui_root = (self.server.health_store.root / "v2-web").resolve()
+        if not ui_root.exists():
+            self._send_html(render_health_ui_missing())
+            return
+        if target is None or not target.is_file():
+            self._send_json({"error": "not found"}, status=HTTPStatus.NOT_FOUND)
+            return
+        content_type = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
+        self._send_file(target, content_type)
+
+    def _send_file(self, path: Path, content_type: str) -> None:
+        data = path.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _send_redirect(self, location: str) -> None:
+        self.send_response(HTTPStatus.FOUND)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
 
     def _send_json(self, payload: dict[str, Any], *, status: HTTPStatus = HTTPStatus.OK) -> None:
         data = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")

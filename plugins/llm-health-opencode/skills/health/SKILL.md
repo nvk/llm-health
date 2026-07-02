@@ -87,6 +87,7 @@ health source-audit run --profile rod --focus medium
 health source-audit report
 health genomics ui --profile rod
 health genomics import <raw-genotype-text> --profile rod --accept-genetic-risk
+health genomics import <raw-genotype-text> --profile rod --accept-genetic-risk --include-research-markers
 health genomics status --profile rod
 health genomics qc --profile rod
 health genomics annotate --profile rod
@@ -182,7 +183,7 @@ do not add raw source filenames or paths, and remind users to verify original so
 
 Use `health genomics` only as confirmation-first context. Prefer `health genomics ui --profile <alias>`
 when the user wants a browser file picker; it binds localhost by default and does not send/store the
-browser filename/path or dense genome-wide calls. CLI imports require `--accept-genetic-risk`; output is not diagnosis,
+browser filename/path or dense genome-wide calls. CLI imports require `--accept-genetic-risk`; opt-in research marker lists such as dyslexia, ADHD, and autism spectrum require `--include-research-markers` and are not diagnostic. Output is not diagnosis,
 prescribing, or test ordering. Use QC and bundled annotations first, then `crossref` to create
 lab/med/family review cards and `pgx` for clinician/pharmacist discussion prompts. High-impact
 findings need clinical confirmation.

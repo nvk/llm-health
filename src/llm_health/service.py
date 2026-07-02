@@ -6,7 +6,11 @@ from typing import Any
 from llm_health import __version__
 from llm_health.core.privacy import PrivacyError, validate_profile_alias
 from llm_health.genomics import GenomicsStore
-from llm_health.genomics.gui import render_genomics_import_ui
+from llm_health.genomics.gui import (
+    health_ui_target,
+    render_genomics_import_ui,
+    render_health_ui_missing,
+)
 from llm_health.genomics.pipeline import (
     genomics_crossrefs_payload,
     genomics_qc_payload,
@@ -34,6 +38,7 @@ class ServiceRoute:
 
 SERVICE_ROUTES: tuple[ServiceRoute, ...] = (
     ServiceRoute("GET", "/health", "Local service status and package version."),
+    ServiceRoute("GET", "/health/ui/", "Served local Assessment board export when present."),
     ServiceRoute("GET", "/profiles", "Alias-only enrolled profile list."),
     ServiceRoute("GET", "/observations/query", "Alias-scoped observations by marker/category."),
     ServiceRoute("GET", "/reviews/latest", "Alias-scoped latest quick-review cards."),
@@ -74,8 +79,8 @@ def _observation_to_payload(observation: Any) -> dict[str, object]:
 
 def build_app(store: LocalHealthStore):  # pragma: no cover - exercised when optional deps present
     try:
-        from fastapi import FastAPI, HTTPException, Query
-        from fastapi.responses import HTMLResponse
+        from fastapi import FastAPI, HTTPException, Query, Request
+        from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError("Install optional extra with `pip install llm-health[service]`") from exc
 
@@ -94,6 +99,22 @@ def build_app(store: LocalHealthStore):  # pragma: no cover - exercised when opt
     def profiles() -> dict[str, object]:
         store.init()
         return {"profiles": [profile.to_dict() for profile in store.enrolled_profiles()]}
+
+    @app.get("/health/ui")
+    def health_ui_redirect(request: Request) -> RedirectResponse:
+        suffix = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(url=f"/health/ui/{suffix}")
+
+    @app.get("/health/ui/", response_class=HTMLResponse)
+    @app.get("/health/ui/{asset_path:path}")
+    def health_ui(asset_path: str = ""):
+        ui_root = (store.root / "v2-web").resolve()
+        if not ui_root.exists():
+            return HTMLResponse(render_health_ui_missing())
+        target = health_ui_target(store.root, f"/health/ui/{asset_path}")
+        if target is None or not target.is_file():
+            raise HTTPException(status_code=404, detail="health UI asset not found")
+        return FileResponse(target)
 
     @app.get("/observations/query")
     def observations_query(
@@ -262,6 +283,7 @@ def build_app(store: LocalHealthStore):  # pragma: no cover - exercised when opt
                 source_kind=str(payload.get("source_kind") or "auto"),
                 clinical_grade=bool(payload.get("clinical_grade")),
                 accept_genetic_risk=bool(payload.get("accept_genetic_risk")),
+                include_research_markers=bool(payload.get("include_research_markers")),
                 run_crossref=True,
             )
         except (PrivacyError, ValueError) as exc:

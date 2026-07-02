@@ -43,11 +43,13 @@ import {
   IconDownload,
   IconExternalLink,
   IconFlag,
+  IconHome2,
   IconMail,
   IconMoon,
   IconSearch,
   IconSun,
   IconTimeline,
+  IconUser,
 } from '@tabler/icons-react';
 import {
   CartesianGrid,
@@ -471,13 +473,15 @@ function App() {
 
             <ScrollArea className="controls-scroll" type="auto">
               <Stack gap="md" pr="xs">
-                <ControlLabel label="Profile" />
-                <SegmentedControl
+                <Select
+                  label="Profile"
                   className="profile-switch"
                   data={profileOptions}
                   value={state.profile}
-                  onChange={(value) => update({ profile: value, section: 'profile' })}
-                  fullWidth
+                  onChange={(value) => update({ profile: value || profileOptions[0]?.value || 'rod', section: 'profile' })}
+                  searchable
+                  allowDeselect={false}
+                  leftSection={<IconUser size={16} />}
                 />
 
                 <ControlLabel label="Time" />
@@ -576,7 +580,7 @@ function App() {
 
             <Tabs value={state.section} onChange={(value) => update({ section: (value || 'review') as SectionId })} className="main-tabs">
               <Tabs.List>
-                <Tabs.Tab value="profile" leftSection={<IconClipboardList size={16} />}>Profile</Tabs.Tab>
+                <Tabs.Tab value="profile" leftSection={<IconHome2 size={16} />}>Home</Tabs.Tab>
                 <Tabs.Tab value="review" leftSection={<IconClipboardList size={16} />}>Review</Tabs.Tab>
                 <Tabs.Tab value="genomics" leftSection={<IconDna2 size={16} />}>Genomics</Tabs.Tab>
                 <Tabs.Tab value="timeline" leftSection={<IconTimeline size={16} />}>Timeline</Tabs.Tab>
@@ -679,6 +683,9 @@ function Header({ state, rows, allRows, series, profileOptions, profileContext, 
           </Text>
         </div>
         <Group gap="xs">
+          <MantineTooltip label="Open genotype import / matching">
+            <Button component="a" href={genomicsUiHref(state.profile)} target="_blank" rel="noreferrer" variant="light" leftSection={<IconDna2 size={16} />}>Genomics import</Button>
+          </MantineTooltip>
           <MantineTooltip label="Copy bookmarkable view">
             <Button variant="light" leftSection={<IconExternalLink size={16} />} onClick={() => navigator.clipboard?.writeText(location.href)}>Copy view</Button>
           </MantineTooltip>

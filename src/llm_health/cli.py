@@ -608,6 +608,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Required with --store-dense-variants; intended only for local FOSS workflows",
     )
+    genomics_import.add_argument(
+        "--include-research-markers",
+        action="store_true",
+        help=(
+            "Opt in to non-diagnostic research trait marker lists such as dyslexia, "
+            "ADHD, and autism-spectrum GWAS lead SNPs; excluded from default matching"
+        ),
+    )
 
     for name, help_text in [
         ("status", "Show imported genomic sources and counts"),
@@ -1642,7 +1650,12 @@ def cmd_genomics(args: argparse.Namespace) -> int:
             path = "/genomics/ui"
         server = GenomicsGuiServer((args.host, args.port), store)
         url = f"http://{args.host}:{args.port}{path}"
+        home_path = (
+            f"/health/ui/?profile={profile}&section=genomics" if args.profile else "/health/ui/"
+        )
+        health_home = f"http://{args.host}:{args.port}{home_path}"
         print(f"starting llm-health genomics GUI on {url}")
+        print(f"health_home: {health_home}")
         print("local_only: true")
         print(
             "privacy: browser filename/path are not posted; raw genetic text and dense "
@@ -1682,6 +1695,7 @@ def cmd_genomics(args: argparse.Namespace) -> int:
             accept_genetic_risk=args.accept_genetic_risk,
             store_dense_variants=args.store_dense_variants,
             accept_dense_genetic_storage=args.accept_dense_genetic_storage,
+            include_research_markers=args.include_research_markers,
             run_crossref=True,
         )
         print("Matched genomic source")
@@ -1693,6 +1707,48 @@ def cmd_genomics(args: argparse.Namespace) -> int:
         print(f"call_rate: {summary.source.call_rate:.3f}")
         print("qc_notes: " + (", ".join(summary.qc.warnings) if summary.qc.warnings else "none"))
         print(f"stored_genomic_inferences: {summary.stored_inferences}")
+        diagnostics = summary.match_diagnostics
+        print(
+            "research_marker_opt_in: "
+            + ("yes" if diagnostics.get("include_research_markers") else "no")
+        )
+        print(
+            "research_markers_checked: "
+            f"{diagnostics.get('research_catalog_markers', 0)}"
+        )
+        print(
+            "research_marker_matches: "
+            f"{diagnostics.get('research_marker_matches', 0)}"
+        )
+        print(
+            "research_effect_marker_matches: "
+            f"{diagnostics.get('research_effect_marker_matches', 0)}"
+        )
+        print(
+            "research_scopes: "
+            f"{diagnostics.get('research_scope_summary', 'none')}"
+        )
+        print(
+            "dyslexia_gwas_markers_checked: "
+            f"{diagnostics.get('dyslexia_gwas_catalog_markers', 0)}"
+        )
+        print(
+            "dyslexia_gwas_marker_matches: "
+            f"{diagnostics.get('dyslexia_gwas_marker_matches', 0)}"
+        )
+        print(
+            "dyslexia_gwas_effect_marker_matches: "
+            f"{diagnostics.get('dyslexia_gwas_effect_marker_matches', 0)}"
+        )
+        print(
+            "adhd_gwas_marker_matches: "
+            f"{diagnostics.get('adhd_gwas_marker_matches', 0)}"
+        )
+        print(
+            "autism_spectrum_gwas_marker_matches: "
+            f"{diagnostics.get('autism_spectrum_gwas_marker_matches', 0)}"
+        )
+        print(f"research_match_note: {diagnostics.get('note', 'not reported')}")
         print(
             "privacy: raw genetic file path, browser filename, raw text, and dense genome-wide "
             "calls are not stored by default"
@@ -1820,6 +1876,7 @@ def cmd_service(args: argparse.Namespace) -> int:
 
     try:
         print(f"starting llm-health local service on http://{args.host}:{args.port}")
+        print(f"health_home: http://{args.host}:{args.port}/health/ui/")
         run_service(store, host=args.host, port=args.port)
         return 0
     except RuntimeError as exc:

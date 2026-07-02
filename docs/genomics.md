@@ -24,6 +24,7 @@ stricter defaults:
 ```sh
 health genomics ui --profile alex
 health genomics import ./synthetic-genotype.txt --profile alex --accept-genetic-risk
+health genomics import ./synthetic-genotype.txt --profile alex --accept-genetic-risk --include-research-markers
 health genomics status --profile alex
 health genomics qc --profile alex
 health genomics annotate --profile alex
@@ -57,16 +58,22 @@ genome-wide calls.
   private HUB; dense genome-wide calls require an explicit local-only override.
 - Reports QC notes for low call rate, duplicate markers, unknown genome build, complex/indel-like
   calls, and consumer/unconfirmed sources.
-- Provides a release-pinned bundled clinical marker catalog with 805 rows: 786 CPIC/ClinPGx
-  allele-definition markers across 17 genes plus 19 manually reviewed clinical sentinel rows.
+- Provides a release-pinned bundled marker catalog with 916 rows: 786 CPIC/ClinPGx
+  allele-definition markers across 17 genes, 19 manually reviewed clinical sentinel rows, and
+  111 opt-in neurodevelopmental GWAS research rows covering dyslexia, ADHD, and direct
+  autism-spectrum lead SNPs.
 - Uses only the `candidate_default_after_qc` subset for normal sparse matching by default
   (437 markers in this release). Sensitive, specialty, and deferred markers stay out of default
   storage until dedicated opt-in/confirmation workflows exist.
+- Provides opt-in research trait lists such as dyslexia, ADHD, and direct autism-spectrum GWAS
+  lead-SNP lists. These are excluded from default matching and are summarized as separate
+  non-diagnostic research-context cards, not as individual clinical findings or a polygenic
+  risk score.
 - Creates `GenomicInference` cards tagged as review artifacts with required confirmation gates.
 - Provides `health genomics ui`, a localhost-only browser SNP matching panel with a file picker, profile
   selector, genetic-risk checkbox, QC summary, and cross-reference cards.
-- Exposes local service routes for `/genomics/ui`, `/genomics/import-text`, `/genomics/sources`,
-  `/genomics/qc`, `/genomics/crossrefs`, and `/genomics/crossrefs/run`.
+- Exposes local service routes for `/health/ui/`, `/genomics/ui`, `/genomics/import-text`,
+  `/genomics/sources`, `/genomics/qc`, `/genomics/crossrefs`, and `/genomics/crossrefs/run`.
 
 ## Deliberate limits
 
@@ -90,6 +97,9 @@ Runtime tiers:
   mitochondrial aminoglycoside/hearing-loss markers; not default.
 - `sensitive_opt_in` / `sensitive_opt_in_gene_panel_preferred`: APOE and selected BRCA-style
   sensitive contexts; not default and never a reassurance screen.
+- `research_opt_in`: research trait marker lists such as dyslexia, ADHD, and autism-spectrum GWAS
+  lead SNPs; not default, not diagnostic, and aggregated in review output to avoid
+  over-interpreting individual SNPs.
 
 Rows are clinical-review prompts, not diagnoses. Missing rows or absent array coverage never means
 low risk.

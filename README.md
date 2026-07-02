@@ -41,6 +41,7 @@ Compressed changelog; see `CHANGELOG.md` for full test/privacy details.
 
 | Version | Notes |
 |---|---|
+| **0.0.34** | Adds opt-in dyslexia/ADHD/autism-spectrum GWAS research marker matching, separates research cards in the genomics UI, and serves the Assessment board from the local genomics service. |
 | **0.0.33** | Integrates genomics into the main Assessment board with patient-friendly summaries, source/QC cards, and static-export privacy coverage. |
 | **0.0.32** | Softens review-warning language across the app, routes the genomics GUI through a server-side review pipeline, and adds patient-friendly genomics summaries. |
 | **0.0.31** | Expands `health genomics` to a release-pinned 805-row clinical marker catalog with source/confirmation metadata while keeping sensitive, specialty, and deferred markers out of default matching. |
@@ -135,9 +136,11 @@ Then commands such as `health review --profile rod` and `health sync-v2 ...` use
 
 `health genomics` runs local matching against raw genotype text files by fingerprint and keeps raw
 genetic file paths plus dense genome-wide calls out of the HUB by default. It ships a release-pinned
-805-row clinical marker catalog with source URLs, context gates, and confirmation-test wording, while
-only the default-safe subset is stored by normal imports. It can show source QC, bundled marker
-annotations, confirmation-first lab/med/family cross-reference cards, and PGx context prompts:
+916-row marker catalog with source URLs, context gates, and confirmation-test wording, while
+only the default-safe subset is stored by normal imports. Opt-in research lists, including dyslexia,
+ADHD, and autism-spectrum GWAS lead SNPs, require `--include-research-markers` and are summarized
+as non-diagnostic research context. It can show source QC, bundled marker annotations, confirmation-first lab/med/family
+cross-reference cards, and PGx context prompts:
 
 ```sh
 # Browser file picker on localhost; no filename/path is posted or stored.
@@ -145,6 +148,7 @@ health genomics ui --profile rod
 
 # CLI matching/import remains available for scripts.
 health genomics import ./synthetic-genotype.txt --profile rod --accept-genetic-risk
+health genomics import ./synthetic-genotype.txt --profile rod --accept-genetic-risk --include-research-markers
 health genomics qc --profile rod
 health genomics crossref --profile rod
 health genomics pgx --profile rod

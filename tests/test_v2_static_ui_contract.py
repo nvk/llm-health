@@ -77,6 +77,8 @@ def test_packaged_v3_static_ui_uses_framework_board() -> None:
     assert "Genomics" in text
     assert "Genomics review" in text
     assert "Genomic review" in text
+    assert "Genomics import" in text
+    assert "Home" in text
     assert "Patient-friendly findings" in text
     assert "/genomics/ui" in text
     assert "Context overlays" in text

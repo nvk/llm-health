@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.0.34 - 2026-07-02
+
+- Added opt-in dyslexia, ADHD, and direct autism-spectrum GWAS research marker matching behind `--include-research-markers`, with 111 non-diagnostic research rows excluded from default sparse imports.
+- Generalized aggregate research-context cards so neurodevelopmental GWAS marker matches are separated from clinical/PGx review cards and patient summaries call out research-only context.
+- Updated the localhost genomics GUI, CLI diagnostics, Assessment board link, and service routes so users can import with research opt-in and open the local Assessment board from the same server.
+
 ## 0.0.33 - 2026-07-01
 
 - Integrated rendered genomics review payloads into the main Assessment board so genomics appears beside profile, review, timeline, and source sections.

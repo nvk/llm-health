@@ -7,15 +7,21 @@ from dataclasses import dataclass, field
 from importlib import resources
 
 CATALOG_RESOURCE = "data/clinical_markers.tsv"
-ACGT = {"A", "C", "G", "T"}
+REPORTED_ALLELE_RE = re.compile(r"^[ACGT]+$")
 DEFAULT_MATCH_RUNTIME_DEFAULTS = frozenset({"candidate_default_after_qc"})
 DEFERRED_RUNTIME_DEFAULTS = frozenset(
-    {"defer_until_context", "defer_until_strand_fixture", "defer_until_clinvar_validation"}
+    {
+        "defer_until_context",
+        "defer_until_strand_fixture",
+        "defer_until_clinvar_validation",
+        "defer_low_utility",
+    }
 )
 SPECIALTY_RUNTIME_DEFAULTS = frozenset({"specialty_opt_in"})
 SENSITIVE_RUNTIME_DEFAULTS = frozenset(
     {"sensitive_opt_in", "sensitive_opt_in_gene_panel_preferred"}
 )
+RESEARCH_RUNTIME_DEFAULTS = frozenset({"research_opt_in"})
 
 
 @dataclass(frozen=True)
@@ -48,7 +54,7 @@ class MarkerKnowledge:
         """Simple allele tokens that can be matched from 23andMe/Ancestry-like calls."""
 
         tokens = [token.strip().upper() for token in re.split(r"[|,;/\s]+", self.effect_allele)]
-        return tuple(token for token in tokens if token in ACGT)
+        return tuple(token for token in tokens if REPORTED_ALLELE_RE.match(token))
 
     @property
     def is_sensitive(self) -> bool:
@@ -61,6 +67,10 @@ class MarkerKnowledge:
     @property
     def is_deferred(self) -> bool:
         return self.runtime_default in DEFERRED_RUNTIME_DEFAULTS
+
+    @property
+    def is_research(self) -> bool:
+        return self.runtime_default in RESEARCH_RUNTIME_DEFAULTS
 
 
 def _clean(text: str | None) -> str:
@@ -117,12 +127,21 @@ def _topic_from_row(row: dict[str, str]) -> str:
         return "alpha1_antitrypsin"
     if gene == "HBB" or "hemoglobin" in text or "sickle" in text:
         return "hemoglobinopathy"
+    if "dyslexia" in text or "reading disability" in text:
+        return "dyslexia"
+    if "attention-deficit" in text or "attention deficit" in text or "adhd" in text:
+        return "adhd"
+    if "autism spectrum" in text or "autism-spectrum" in text or re.search(r"\basd\b", text):
+        return "autism_spectrum"
     return row.get("trait", "clinical_context").replace(" ", "_").lower() or "clinical_context"
 
 
 def _finding_type_from_row(row: dict[str, str]) -> str:
     category = row.get("category", "").lower()
     scope = row.get("match_scope", "").lower()
+    tier = row.get("reporting_tier", "").lower()
+    if "research" in category or "polygenic" in category or "research" in tier:
+        return "research_trait_context"
     if "pgx" in category or "drug metabolism" in category or "cpic" in scope:
         return "pgx"
     if "anesthesia" in category:
@@ -143,6 +162,8 @@ def _finding_type_from_row(row: dict[str, str]) -> str:
 def _confidence_from_row(row: dict[str, str]) -> str:
     runtime = row.get("runtime_default", "")
     tier = row.get("reporting_tier", "")
+    if runtime in RESEARCH_RUNTIME_DEFAULTS or "research" in tier:
+        return "low"
     if runtime == "candidate_default_after_qc" and "expanded_pgx" in tier:
         return "medium"
     if runtime == "candidate_default_after_qc":
@@ -239,12 +260,15 @@ def markers_for_matching(
     include_specialty: bool = False,
     include_sensitive: bool = False,
     include_deferred: bool = False,
+    include_research: bool = False,
 ) -> dict[str, MarkerKnowledge]:
     """Return markers eligible for sparse storage under the requested consent tier."""
 
     allowed = set(DEFAULT_MATCH_RUNTIME_DEFAULTS)
     if include_deferred:
         allowed.update(DEFERRED_RUNTIME_DEFAULTS)
+    if include_research:
+        allowed.update(RESEARCH_RUNTIME_DEFAULTS)
     if include_specialty:
         allowed.update(SPECIALTY_RUNTIME_DEFAULTS)
     if include_sensitive:
